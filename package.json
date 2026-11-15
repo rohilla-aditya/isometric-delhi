@@ -1,0 +1,12 @@
+{
+  "name": "isometric-delhi",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "An explorable isometric map of Delhi, drawn in the browser from real geography.",
+  "scripts": {
+    "start": "node serve.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "engines": { "node": ">=18" }
+}
