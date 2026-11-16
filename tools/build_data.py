@@ -184,8 +184,14 @@ def guess_height(kind: str, area: float, seed: int) -> float:
     if kind == "religious":
         return 9 + r * 6
     if kind == "apartments":
-        return 12 + r * 30 if area > 400 else 10 + r * 6
+        # Gurugram and Noida high-rises have big footprints; DDA walk-ups don't
+        if area > 900:
+            return 22 + r * 50
+        return 12 + r * 14 if area > 400 else 10 + r * 6
     if kind == "commercial":
+        # office towers of Cyber City, Nehru Place, Noida sectors
+        if area > 1500:
+            return 20 + r * 45
         return 12 + r * 18 if area > 800 else 9 + r * 8
     if area < 60:
         return 4 + r * 4
@@ -386,17 +392,17 @@ def main(paths):
 # millions of buildings in the browser at that scale would be far too slow.
 # Colours match public/js/city.js.
 
-AREA_RGB = {1: "#d9d0bd", 2: "#d6cdc6", 3: "#cdc8c0", 4: "#c5d08f", 5: "#b5cc85", 6: "#a3c876", 7: "#88a65c",
-            8: "#e0d2aa", 9: "#b9c4a0", 10: "#c9c7b2", 11: "#cfd3c0", 12: "#bebdb7", 13: "#9dc46e", 14: "#6aa5bf",
+AREA_RGB = {1: "#d9d0bd", 2: "#d6cdc6", 3: "#cdc8c0", 4: "#c5d08f", 5: "#a9cf73", 6: "#8fc65c", 7: "#6f9e44",
+            8: "#e0d2aa", 9: "#b9c4a0", 10: "#c9c7b2", 11: "#cfd3c0", 12: "#bebdb7", 13: "#7fbf55", 14: "#4f9cc4",
             15: "#cbc3b5", 16: "#d8cdb6", 17: "#e2d8c6"}
 AREA_ORDER = [1, 2, 3, 15, 10, 11, 16, 4, 8, 5, 9, 6, 7, 13, 12, 17, 14]
-LINE_RGB = {11: (14, "#6aa5bf"), 12: (12, "#6aa5bf"), 5: (10, "#f4efe4"), 4: (13, "#fff2d0"), 3: (16, "#ffe2a6"),
-            2: (20, "#f6cc7c"), 1: (24, "#efb060"), 9: (45, "#6a6c70"), 8: (5, "#a39480")}
+LINE_RGB = {11: (14, "#4f9cc4"), 12: (12, "#4f9cc4"), 5: (10, "#8a8b90"), 4: (13, "#808186"), 3: (16, "#74757c"),
+            2: (20, "#6a6b72"), 1: (24, "#606168"), 9: (45, "#5e6066"), 8: (5, "#9c8c78")}
 LINE_ORDER = [11, 12, 5, 4, 3, 2, 1, 9, 8]
-ROOF = {1: ["#e8d8b9", "#e3c6a6", "#d9b99b", "#efd9d0", "#cfd8d0", "#e6cfa0", "#d8a48f"],
-        2: ["#e8d2b0", "#d8c0a0", "#e9e2d0", "#d9a080"], 3: ["#9fb7c9", "#b8c6cf", "#c9c2b4"],
-        4: ["#a7aaa8", "#9aa3ad", "#b8b2a5"], 5: ["#f3efe6", "#f0dcc0"], 6: ["#e6d3b3", "#d9c2a0"],
-        7: ["#e4c9a2", "#d6b48a"], 8: ["#b9a58a"], 0: ["#e8d8b9", "#e3c6a6", "#d9c9b0", "#cfd8d0", "#e6cfa0", "#d8bfa8"]}
+ROOF = {1: ["#e6d5c4", "#e8dccb", "#dccfc2", "#e4d6cf", "#cfd8d2", "#e6dcc0", "#dccbbb"],
+        2: ["#e3d5c3", "#dccdbd", "#e6e0d6", "#dbc6b6"], 3: ["#bfcfdb", "#c9d3da", "#d6d0c4"],
+        4: ["#b9bec2", "#b4b9bd"], 5: ["#efebe3", "#ece0cd"], 6: ["#e2d6c3", "#dccdb9"],
+        7: ["#e2d2bb", "#dccab0"], 8: ["#c9bba6"], 0: ["#e3d5c2", "#dfcfc2", "#dcd4c6", "#d3dad3", "#e3d9bf", "#dccdbf"]}
 OV_SCALE = 1 / 16  # overview px per world px
 OV_TILE = 1024
 

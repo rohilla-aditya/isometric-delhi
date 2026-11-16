@@ -12,7 +12,7 @@ export const LANDMARKS = [
     era: '1931', text: 'The southern twin of the Secretariat, housing the Prime Minister’s Office and the ministries of defence and external affairs.' },
   { id: 'parliament', name: 'Sansad Bhavan', hi: 'संसद भवन', lat: 28.6187, lon: 77.2095, w: 3, d: 2,
     era: '1927 / 2023', text: 'India’s Parliament: the circular colonnaded house of 1927 and, beside it, the triangular new building inaugurated in 2023.' },
-  { id: 'connaught-place', name: 'Connaught Place', hi: 'कनॉट प्लेस', lat: 28.6315, lon: 77.2167, w: 5, d: 5,
+  { id: 'connaught-place', name: 'Connaught Place', hi: 'कनॉट प्लेस', lat: 28.6328, lon: 77.2199, w: 2, d: 2,
     era: '1933', text: 'Two concentric rings of white Georgian colonnades around Central Park, built as New Delhi’s commercial heart. Rajiv Chowk metro station lies underneath.' },
   { id: 'jantar-mantar', name: 'Jantar Mantar', hi: 'जंतर मंतर', lat: 28.6243, lon: 77.2166, w: 1, d: 1,
     era: '1724', text: 'An open-air observatory of giant masonry instruments built by Maharaja Sawai Jai Singh II, including a huge sundial, the Samrat Yantra.' },
