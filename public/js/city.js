@@ -103,7 +103,76 @@ export function placeLandmarks(list) {
   });
 }
 
-export function drawLandmarkModel(ctx, lm) {
+// AI-painted landmark sprites (tools/paint), drawn in place of the models.
+const SPRITES = new Map(); // id -> { img, box, tinted: { mode: canvas } }
+const TINT_RGB = { dusk: 'rgb(255,204,173)', night: 'rgb(77,87,133)' };
+
+/** Load sprites listed in <base>/landmarks.json; onReady fires as each arrives. */
+export async function loadSprites(base, onReady) {
+  let boxes;
+  try {
+    boxes = await (await fetch(`${base}/landmarks.json`)).json();
+  } catch {
+    return;
+  }
+  for (const [id, box] of Object.entries(boxes)) {
+    const img = new Image();
+    img.decoding = 'async';
+    img.onload = () => {
+      SPRITES.set(id, { img, box, tinted: {} });
+      onReady?.();
+    };
+    img.src = `${base}/${id}.webp`;
+  }
+}
+
+function spriteFor(id) {
+  const sp = SPRITES.get(id);
+  if (!sp) return null;
+  const mode = getMode();
+  if (mode === 'day') return sp.img;
+  if (!sp.tinted[mode]) {
+    const cv = document.createElement('canvas');
+    cv.width = sp.img.naturalWidth;
+    cv.height = sp.img.naturalHeight;
+    const c = cv.getContext('2d');
+    c.drawImage(sp.img, 0, 0);
+    c.globalCompositeOperation = 'multiply';
+    c.fillStyle = TINT_RGB[mode];
+    c.fillRect(0, 0, cv.width, cv.height);
+    c.globalCompositeOperation = 'destination-in';
+    c.drawImage(sp.img, 0, 0);
+    sp.tinted[mode] = cv;
+  }
+  return sp.tinted[mode];
+}
+
+export function drawLandmarkModel(ctx, lm, useSprite = true) {
+  const sprite = useSprite && SPRITES.get(lm.id);
+  if (sprite) {
+    const { x0, y0, x1, y1 } = sprite.box;
+    const prev = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(spriteFor(lm.id), x0, y0, x1 - x0, y1 - y0);
+    ctx.imageSmoothingEnabled = prev;
+    if (getMode() === 'night') floodlight(ctx, lm);
+    return;
+  }
+  drawModel(ctx, lm);
+  if (getMode() === 'night') floodlight(ctx, lm);
+}
+
+function floodlight(ctx, lm) {
+  const [fx, fy] = iso(lm.e, lm.s, lm.top * 0.4);
+  const r = Math.max(lm.hw, lm.hd) * 1.6 + 20;
+  const grd = ctx.createRadialGradient(fx, fy, 0, fx, fy, r);
+  grd.addColorStop(0, L('#ffd9a0', 0.3));
+  grd.addColorStop(1, L('#ffd9a0', 0));
+  ctx.fillStyle = grd;
+  ctx.fillRect(fx - r, fy - r, r * 2, r * 2);
+}
+
+function drawModel(ctx, lm) {
   const g = lm.mpt / 16;
   const ci = lm.w / 2;
   const cj = lm.d / 2;
@@ -115,15 +184,6 @@ export function drawLandmarkModel(ctx, lm) {
   MODELS[lm.id].draw(ctx, { ...lm, i0: 0, j0: 0, i1: lm.w - 1, j1: lm.d - 1 });
   setVS(1);
   ctx.restore();
-  if (getMode() === 'night') {
-    const [fx, fy] = iso(lm.e, lm.s, lm.top * 0.4);
-    const r = Math.max(lm.hw, lm.hd) * 1.6 + 20;
-    const grd = ctx.createRadialGradient(fx, fy, 0, fx, fy, r);
-    grd.addColorStop(0, L('#ffd9a0', 0.3));
-    grd.addColorStop(1, L('#ffd9a0', 0));
-    ctx.fillStyle = grd;
-    ctx.fillRect(fx - r, fy - r, r * 2, r * 2);
-  }
 }
 
 function pick(list, seed) {
@@ -206,6 +266,21 @@ export class City {
       this.cache.set(k, c);
     }
     return c;
+  }
+
+  /**
+   * Paint any square of the world (x0, y0, span in world px) into a size x size
+   * canvas, without caching. Used to make inputs for the AI painter.
+   */
+  renderRect(x0, y0, span, size, makeCanvas) {
+    const cells = this.cellsFor(x0, y0, x0 + span, y0 + span);
+    if (!cells) return null;
+    const cv = makeCanvas(size, size);
+    const ctx = cv.getContext('2d');
+    const k = size / span;
+    ctx.setTransform(k, 0, 0, k, -x0 * k, -y0 * k);
+    this.paint(ctx, cells, x0, y0, x0 + span, y0 + span, k * PIXEL);
+    return cv;
   }
 
   /** Paint one chunk if its cells are loaded; returns the canvas or null. */

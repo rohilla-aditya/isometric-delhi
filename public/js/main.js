@@ -1,7 +1,7 @@
 import { iso, unIso, llToEs, esToLL, setMeta, worldBounds, ZK } from './proj.js';
 import { LANDMARKS, DISTRICT_LABELS } from './data.js';
 import { CellStore } from './cells.js';
-import { City, CHUNK, LEVELS, placeLandmarks } from './city.js';
+import { City, CHUNK, LEVELS, placeLandmarks, drawLandmarkModel, loadSprites } from './city.js';
 import { Life } from './life.js';
 import { setMode } from './draw.js';
 
@@ -17,7 +17,7 @@ const ctx = canvas.getContext('2d');
 const mini = $('minimap');
 const mctx = mini.getContext('2d');
 
-const opts = { traffic: true, metro: true, labels: true };
+const opts = { traffic: true, metro: true, labels: true, painted: true };
 let mode = 'day';
 let meta;
 let bounds;
@@ -37,6 +37,7 @@ let zoomGoal = null; // eased wheel zoom: { z, sx, sy }
 let lastMove = 0;
 let viewHash = '';
 let photoCredits = {}; // landmark id -> Commons author, licence and source
+let painted = null; // AI-painted city tiles: { tile, size, have: Set, images: Map }
 let selected = null;
 let hovered = null;
 let dirty = true;
@@ -151,6 +152,7 @@ function frame(now, dt) {
     }
   }
 
+  if (opts.painted) drawPainted(vx0, vy0, vx1, vy1, s, tx, ty);
   ctx.imageSmoothingEnabled = true;
   ctx.setTransform(s, 0, 0, s, tx, ty);
   life.draw(ctx, view, opts);
@@ -216,6 +218,42 @@ function drawStandIn(level, x0, y0, span, s, tx, ty, r) {
     return true;
   }
   return false;
+}
+
+/**
+ * The AI-painted city (tools/paint), laid over the map from mid zoom down to
+ * street level wherever tiles exist. Closer in, the drawn map's finer detail
+ * takes over; further out there are too many tiles to show at once.
+ */
+function drawPainted(vx0, vy0, vx1, vy1, s, tx, ty) {
+  if (!painted || s < 0.16 || s > 1.4) return;
+  const span = painted.tile;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.imageSmoothingEnabled = s < 0.5; // shrink smoothly, enlarge as crisp pixels
+  for (let cy = Math.floor(vy0 / span); cy <= Math.floor(vy1 / span); cy++) {
+    for (let cx = Math.floor(vx0 / span); cx <= Math.floor(vx1 / span); cx++) {
+      const key = cx + '_' + cy;
+      if (!painted.have.has(key)) continue;
+      let img = painted.images.get(key);
+      if (!img) {
+        img = new Image();
+        img.decoding = 'async';
+        img.src = `painted/tiles/${key}.webp`;
+        painted.images.set(key, img);
+        if (painted.images.size > 260) painted.images.delete(painted.images.keys().next().value);
+      }
+      if (!img.complete || !img.naturalWidth) continue;
+      const r = deviceRect(cx * span, cy * span, span, s, tx, ty);
+      ctx.drawImage(img, r.x, r.y, r.w, r.h);
+      if (TINT[mode]) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'multiply';
+        ctx.fillStyle = TINT[mode];
+        ctx.fillRect(r.x, r.y, r.w, r.h);
+        ctx.restore();
+      }
+    }
+  }
 }
 
 function tint(x0, y0, x1, y1) {
@@ -708,6 +746,15 @@ async function boot() {
   minimapImg = loadImage(`${DATA}/minimap.webp`);
 
   landmarks = placeLandmarks(LANDMARKS);
+  loadSprites('sprites', () => city?.clear());
+  try {
+    const idx = await (await fetch('painted/index.json')).json();
+    painted = { tile: idx.tile, size: idx.size, have: new Set(idx.tiles), images: new Map() };
+    if (!painted.have.size) painted = null;
+  } catch {
+    painted = null;
+  }
+  if (!painted) document.querySelector('[data-toggle="painted"]')?.remove();
   try {
     photoCredits = await (await fetch('photos/credits.json')).json();
   } catch {
@@ -736,7 +783,31 @@ async function boot() {
     requestAnimationFrame(loop);
   };
   requestAnimationFrame(loop);
-  window.__delhi = { cam, select, setTimeOfDay, flyTo, landmarks, get city() { return city; } };
+  window.__delhi = {
+    cam, select, setTimeOfDay, flyTo, landmarks,
+    get city() {
+      return city;
+    },
+    // Hooks for tools/paint: clean renders (no labels, traffic or UI) as PNG data URLs.
+    async renderTile(x0, y0, span, size) {
+      const plain = (w, h) => Object.assign(document.createElement('canvas'), { width: w, height: h });
+      for (let k = 0; k < 600; k++) {
+        const cv = city.renderRect(x0, y0, span, size, plain);
+        if (cv) return cv.toDataURL('image/png');
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      throw new Error('cells did not load');
+    },
+    renderLandmark(id, scale) {
+      const lm = landmarks.find((l) => l.id === id);
+      const { x0, y0, x1, y1 } = lm.screen;
+      const cv = Object.assign(document.createElement('canvas'), { width: Math.ceil((x1 - x0) * scale), height: Math.ceil((y1 - y0) * scale) });
+      const c = cv.getContext('2d');
+      c.setTransform(scale, 0, 0, scale, -x0 * scale, -y0 * scale);
+      drawLandmarkModel(c, lm, false);
+      return { png: cv.toDataURL('image/png'), x0, y0, x1, y1 };
+    },
+  };
   void dirty;
   void unIso;
   void ZK;

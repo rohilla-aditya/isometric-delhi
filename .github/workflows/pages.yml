@@ -27,6 +27,13 @@ jobs:
         with:
           node-version: 22
       - run: npm test
+      - name: Add the AI-painted city tiles
+        run: |
+          if git ls-remote --exit-code origin refs/heads/painted >/dev/null; then
+            git fetch -q --depth=1 origin painted
+            mkdir -p public/painted
+            git archive origin/painted | tar -x -C public/painted
+          fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
