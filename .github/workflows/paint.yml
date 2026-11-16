@@ -1,0 +1,126 @@
+# Paints the city as pixel art with a free, open image model (tools/paint),
+# a batch at a time on GitHub's free runners. Painted tiles live on the
+# `painted` branch so main stays light; the pages workflow publishes them.
+# Runs daily until every tile is done, or by hand from the Actions tab.
+name: paint
+
+on:
+  schedule:
+    - cron: "23 1 * * *"
+  workflow_dispatch:
+    inputs:
+      per_shard:
+        description: Most tiles each of the 16 painters takes this run
+        default: "450"
+
+concurrency:
+  group: paint
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: write
+
+env:
+  SHARDS: 16
+  HF_HUB_DISABLE_TELEMETRY: "1"
+
+jobs:
+  paint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 345
+    strategy:
+      fail-fast: false
+      max-parallel: 16
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Which tiles are already painted
+        run: |
+          if git ls-remote --exit-code origin refs/heads/painted >/dev/null; then
+            git fetch -q --depth=1 origin painted
+            git ls-tree --name-only origin/painted tiles/ | sed -e 's#^tiles/##' -e 's#\.webp$##' > done.txt
+          else
+            : > done.txt
+          fi
+          python3 tools/paint/plan.py public/data/meta.json done.txt ${{ matrix.shard }} $SHARDS ${{ inputs.per_shard || 450 }} > tiles.json
+          echo "count=$(python3 -c 'import json;print(len(json.load(open("tiles.json"))))')" >> "$GITHUB_OUTPUT"
+        id: plan
+
+      - uses: actions/setup-python@v5
+        if: steps.plan.outputs.count != '0'
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        if: steps.plan.outputs.count != '0'
+        with:
+          node-version: 22
+
+      - name: Cache the image model
+        if: steps.plan.outputs.count != '0'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-dreamshaper8-lcm-v1
+
+      - name: Install the painter
+        if: steps.plan.outputs.count != '0'
+        run: |
+          pip install -q torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -q -r tools/paint/requirements.txt
+          cd tools/paint && npm install --no-save --silent playwright@1.49.1 && npx playwright install --with-deps chromium
+
+      - name: Render the tiles
+        if: steps.plan.outputs.count != '0'
+        run: |
+          PORT=8080 node serve.mjs &
+          sleep 2
+          node tools/paint/render.cjs http://localhost:8080/ tiles tiles.json renders
+
+      - name: Paint the tiles
+        if: steps.plan.outputs.count != '0'
+        run: python tools/paint/paint.py tiles renders out --limit-minutes 290
+
+      - uses: actions/upload-artifact@v4
+        if: steps.plan.outputs.count != '0'
+        with:
+          name: painted-${{ matrix.shard }}
+          path: out/
+          retention-days: 3
+
+  publish:
+    needs: paint
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: painted-*
+          path: new
+          merge-multiple: true
+
+      - name: Add the new tiles to the painted branch
+        run: |
+          if [ -z "$(ls -A new 2>/dev/null)" ]; then echo "nothing new"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code origin refs/heads/painted >/dev/null; then
+            git fetch -q --depth=1 origin painted && git checkout -q -B painted origin/painted
+          else
+            git checkout -q --orphan painted && git rm -rq --cached . && git clean -fdq -e new
+          fi
+          mkdir -p tiles && cp new/*.webp tiles/ && rm -rf new
+          python3 -c "import json,os; t=sorted(f[:-5] for f in os.listdir('tiles') if f.endswith('.webp')); json.dump({'tile':1024,'size':512,'tiles':t}, open('index.json','w'))"
+          git add tiles index.json
+          git commit -q -m "Paint $(ls tiles | wc -l) city tiles"
+          git push -q origin painted
+          gh workflow run pages.yml --ref main
+        env:
+          GH_TOKEN: ${{ github.token }}
