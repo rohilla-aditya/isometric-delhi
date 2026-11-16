@@ -315,8 +315,9 @@ export class City {
           for (let t = 0; t < len; t += 45) {
             const e = p[k] + ((p[k + 2] - p[k]) * t) / len;
             const s = p[k + 1] + ((p[k + 3] - p[k + 1]) * t) / len;
+            // a small pool of lamplight, never bigger than a few screen pixels
             ctx.beginPath();
-            ctx.arc(e - s, (e + s) / 2, 5, 0, Math.PI * 2);
+            ctx.arc(e - s, (e + s) / 2, Math.min(3, 2.5 / level), 0, Math.PI * 2);
             ctx.fill();
           }
         }
