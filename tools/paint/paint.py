@@ -55,6 +55,9 @@ LANDMARK = {
 }
 
 STRENGTH = {"landmarks": 0.68, "tiles": 0.45}
+# Landmarks whose defining feature (a dome, a coloured crown) gets lost at the
+# usual strength are painted more gently.
+GENTLE = {"humayun-tomb": 0.36, "bharat-mandapam": 0.48, "lodhi-tomb": 0.5}
 
 
 def load():
@@ -89,15 +92,18 @@ def landmarks(src, dst):
     # where each sprite sits in the world, written by render.cjs
     with open(os.path.join(src, "landmarks.json")) as f, open(os.path.join(dst, "landmarks.json"), "w") as g:
         g.write(f.read())
+    only = set(sys.argv[4:])  # optionally repaint just these landmarks
     for name in sorted(os.listdir(src)):
         if not name.endswith(".png"):
             continue
         lid = name[:-4]
+        if only and lid not in only:
+            continue
         rgba = Image.open(os.path.join(src, name)).convert("RGBA")
         base = Image.new("RGB", rgba.size, GROUND)
         base.paste(rgba, mask=rgba.split()[3])
         t = time.time()
-        out = pixelate(repaint(pipe, base, f"{LANDMARK.get(lid, lid)}, {STYLE}", STRENGTH["landmarks"], 11))
+        out = pixelate(repaint(pipe, base, f"{LANDMARK.get(lid, lid)}, {STYLE}", GENTLE.get(lid, STRENGTH["landmarks"]), 11))
         # keep the model's own silhouette, slightly grown, so the sprite fits its place
         mask = rgba.split()[3].point(lambda a: 255 if a > 40 else 0).filter(ImageFilter.MaxFilter(3))
         sprite = out.convert("RGBA")
