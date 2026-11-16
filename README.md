@@ -26,7 +26,6 @@ The site has no build step and no dependencies; Node 18+ runs the dev server
 and tests.
 
 ```bash
-cd isometric-delhi
 npm start          # http://localhost:8080
 npm test
 ```
@@ -41,7 +40,7 @@ osmium extract -b 76.83,28.33,77.56,28.89 india-latest.osm.pbf -o ncr.osm.pbf
 python tools/build_data.py ncr.osm.pbf
 ```
 
-The `delhi-data` GitHub Actions workflow does exactly this: it downloads
+The `data` GitHub Actions workflow does exactly this: it downloads
 India from Geofabrik, cuts out the NCR, runs the pipeline and commits the
 result. It runs when `tools/` changes; run it from the Actions tab to pick up
 newer OpenStreetMap edits.
@@ -75,9 +74,9 @@ OpenStreetMap buildings inside its footprint are hidden automatically.
 
 ## Deploy
 
-It is a static site. The root `render.yaml` publishes `public/` as a Render
-static site (`isometric-delhi`), with `npm test` as the build step. It reads
-no environment variables or secrets.
+It is a static site. The `pages` workflow runs the tests and publishes
+`public/` to GitHub Pages on every push to `main`. It reads no environment
+variables or secrets, and any static host can serve `public/` as it is.
 
 Map data © OpenStreetMap contributors, available under the
 [Open Database License](https://www.openstreetmap.org/copyright).

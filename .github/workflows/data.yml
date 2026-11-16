@@ -1,0 +1,69 @@
+# Rebuilds the map data from OpenStreetMap and commits it. Runs when the
+# pipeline changes, or by hand from the Actions tab to pick up newer edits.
+name: data
+
+on:
+  push:
+    paths:
+      - tools/**
+      - .github/workflows/data.yml
+  workflow_dispatch:
+
+concurrency:
+  group: data-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq osmium-tool
+          pip install -r tools/requirements.txt
+
+      - name: Download OpenStreetMap extract for India
+        run: |
+          curl -sSfL --retry 4 -o india.osm.pbf https://download.geofabrik.de/asia/india-latest.osm.pbf
+          ls -lh india.osm.pbf
+
+      - name: Cut out Delhi NCR
+        run: |
+          osmium extract -b 76.83,28.33,77.56,28.89 --strategy complete_ways india.osm.pbf -o ncr.osm.pbf
+          rm india.osm.pbf
+
+      - name: Build map data
+        run: |
+          rm -rf public/data
+          python tools/build_data.py ncr.osm.pbf
+          rm ncr.osm.pbf
+          du -sh public/data
+
+      - name: Commit data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A public/data
+          if git diff --cached --quiet; then echo "no changes"; exit 0; fi
+          git commit -q -m "Rebuild map data from OpenStreetMap" -m "Data © OpenStreetMap contributors, ODbL."
+          for k in 1 2 3 4; do
+            git pull -q --rebase origin "${GITHUB_REF_NAME}" && git push -q origin "HEAD:${GITHUB_REF_NAME}" && break
+            sleep $((k * 5))
+          done
+          # pushes made with the workflow token don't trigger other workflows,
+          # so redeploy the site explicitly
+          if [ "${GITHUB_REF_NAME}" = main ]; then gh workflow run pages.yml --ref main; fi
+        env:
+          GH_TOKEN: ${{ github.token }}
