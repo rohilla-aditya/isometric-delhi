@@ -253,7 +253,7 @@ function select(lm, fly = true) {
   const card = $('card');
   if (!lm) {
     card.hidden = true;
-    if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+    if (location.hash) setHash('');
     renderList();
     return;
   }
@@ -262,9 +262,18 @@ function select(lm, fly = true) {
   $('card-era').textContent = lm.era;
   $('card-text').textContent = lm.text;
   card.hidden = false;
-  history.replaceState(null, '', '#' + lm.id);
+  setHash(lm.id);
   if (fly) focusLandmark(lm);
   renderList();
+}
+
+function setHash(id) {
+  // some embedding frames refuse history changes; the map works without them
+  try {
+    history.replaceState(null, '', id ? '#' + id : location.pathname + location.search);
+  } catch {
+    /* ignore */
+  }
 }
 
 function pickLandmark(sx, sy) {
