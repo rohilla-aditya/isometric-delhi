@@ -20,6 +20,8 @@ landmarks at their real size, from the Qutub Minar to the Signature Bridge.
   the elevated metro in each line's colour, planes take off and land at IGI,
   kites fly over the colonies and black kites circle Jama Masjid.
 - Deep links: `/#red-fort`, `/#lotus-temple`, … open on that landmark.
+- Each landmark card shows a real photo from Wikimedia Commons, credited to
+  its photographer under its free licence.
 
 Most Delhi buildings in OpenStreetMap have no height, so heights are guessed
 from the building's type and size where `height` or `building:levels` is
@@ -59,6 +61,15 @@ The pipeline writes:
   the cells in view.
 - `overview/*.webp` and `minimap.webp`: the whole region pre-rendered, used
   when zoomed far out.
+
+## Landmark photos
+
+`public/photos/` holds one photo per landmark from
+[Wikimedia Commons](https://commons.wikimedia.org), each under a free licence
+(CC BY, CC BY-SA, CC0 or public domain). `credits.json` records the author,
+licence and source page that the card shows under each photo. To change a
+photo, edit `PHOTOS` in `tools/fetch_photos.py` and run it; it refuses files
+whose licence is not free to reuse.
 
 ## How it works
 
