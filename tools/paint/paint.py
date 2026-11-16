@@ -90,8 +90,10 @@ def landmarks(src, dst):
     pipe = load()
     os.makedirs(dst, exist_ok=True)
     # where each sprite sits in the world, written by render.cjs
-    with open(os.path.join(src, "landmarks.json")) as f, open(os.path.join(dst, "landmarks.json"), "w") as g:
-        g.write(f.read())
+    with open(os.path.join(src, "landmarks.json")) as f:
+        boxes = json.load(f)
+    with open(os.path.join(dst, "landmarks.json"), "w") as g:
+        json.dump(boxes, g, indent=1)
     only = set(sys.argv[4:])  # optionally repaint just these landmarks
     for name in sorted(os.listdir(src)):
         if not name.endswith(".png"):
@@ -103,13 +105,62 @@ def landmarks(src, dst):
         base = Image.new("RGB", rgba.size, GROUND)
         base.paste(rgba, mask=rgba.split()[3])
         t = time.time()
-        out = pixelate(repaint(pipe, base, f"{LANDMARK.get(lid, lid)}, {STYLE}", GENTLE.get(lid, STRENGTH["landmarks"]), 11))
+        prompt = f"{LANDMARK.get(lid, lid)}, {STYLE}"
+        out = repaint(pipe, base, prompt, GENTLE.get(lid, STRENGTH["landmarks"]), 11)
+        # Big sites (Red Fort is 1.4 km across) get few sprite pixels per metre
+        # and turn blocky when zoomed in, so enlarge and paint in more detail.
+        b = boxes[lid]
+        k = min(DETAIL_PX_PER_M * (b["x1"] - b["x0"]) / out.width, DETAIL_MAX_PX / max(out.size))
+        if k > 1.25:
+            out = refine(pipe, out.resize((round(out.width * k), round(out.height * k)), Image.LANCZOS), prompt)
+        out = pixelate(out)
         # keep the model's own silhouette, slightly grown, so the sprite fits its place
-        mask = rgba.split()[3].point(lambda a: 255 if a > 40 else 0).filter(ImageFilter.MaxFilter(3))
+        mask = (rgba.split()[3].point(lambda a: 255 if a > 40 else 0).resize(out.size, Image.NEAREST)
+                .filter(ImageFilter.MaxFilter(3 if k <= 1.25 else 5)))
         sprite = out.convert("RGBA")
         sprite.putalpha(mask)
         sprite.save(os.path.join(dst, f"{lid}.webp"), lossless=False, quality=88, method=6)
         print(lid, f"{time.time() - t:.0f}s", flush=True)
+
+
+# Landmark sprites aim for this many image px per metre of map (pixelated
+# blocks of about 0.7 m), capped at DETAIL_MAX_PX on the long side.
+DETAIL_PX_PER_M = 3.0
+DETAIL_MAX_PX = 3584
+
+
+def refine(pipe, big, prompt, tile=768, overlap=192, strength=0.35):
+    """Paint detail into an enlarged painting, in overlapping sections.
+
+    Low strength keeps every section true to the enlarged picture, so they
+    agree with each other; feathered weights blend the overlaps.
+    """
+    import numpy as np
+
+    W, H = big.size
+    acc = np.zeros((H, W, 3), np.float32)
+    wsum = np.zeros((H, W, 1), np.float32)
+    step = tile - overlap
+    xs = list(range(0, max(1, W - tile) + 1, step)) + ([W - tile] if W > tile and (W - tile) % step else [])
+    ys = list(range(0, max(1, H - tile) + 1, step)) + ([H - tile] if H > tile and (H - tile) % step else [])
+    ramp = np.minimum(np.arange(tile) + 1, overlap) / overlap
+    ramp = np.minimum(ramp, ramp[::-1])
+    for i, y in enumerate(ys):
+        for j, x in enumerate(xs):
+            box = (x, y, min(W, x + tile), min(H, y + tile))
+            part = big.crop(box)
+            out = repaint(pipe, part, prompt, strength, 101 + i * 31 + j)
+            a = np.asarray(out, np.float32)
+            wy, wx = ramp[: a.shape[0]].copy(), ramp[: a.shape[1]].copy()
+            # outer edges of the picture get full weight
+            if y == 0: wy[: overlap] = 1
+            if box[3] == H: wy[-overlap:] = 1
+            if x == 0: wx[: overlap] = 1
+            if box[2] == W: wx[-overlap:] = 1
+            w = (wy[:, None] * wx[None, :])[..., None] + 1e-4
+            acc[box[1]:box[3], box[0]:box[2]] += a * w
+            wsum[box[1]:box[3], box[0]:box[2]] += w
+    return Image.fromarray(np.clip(acc / wsum, 0, 255).astype(np.uint8))
 
 
 def harmonise(out, src, amount=0.55):
