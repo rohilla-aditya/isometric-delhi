@@ -3,8 +3,8 @@
 // hit-testing and labels) and a draw function that receives the landmark with
 // its footprint (i0, j0, w, d) in tile space.
 
-import { iso as P } from './geo.js';
 import {
+  P, VS, setVS,
   C, L, box, rect, prism, cyl, circlePts, dome, shikhara, flag, pole, arch, tree, fillPts, getMode,
 } from './draw.js';
 
@@ -80,7 +80,7 @@ export const MODELS = {
       for (let k = 1; k < 12; k++) {
         const a = P(ci + 0.9, cj - 0.75 + (k / 12) * 1.5, 1);
         ctx.moveTo(a[0], a[1]);
-        ctx.lineTo(a[0], a[1] - 13);
+        ctx.lineTo(a[0], a[1] - 13 * VS);
       }
       ctx.stroke();
       for (const [u, v] of [[i0 + 1.95, j0 + 0.45], [i0 + 4.05, j0 + 0.45], [i0 + 1.95, j0 + 3.55], [i0 + 4.05, j0 + 3.55]]) chhatri(ctx, u, v, 14, 0.12, CREAM);
@@ -115,7 +115,7 @@ export const MODELS = {
         const a = -Math.PI / 4 + ((k + 0.5) / 18) * Math.PI;
         const p = P(oi + Math.cos(a) * 0.82, cj + Math.sin(a) * 0.82, 2.5);
         ctx.moveTo(p[0], p[1]);
-        ctx.lineTo(p[0], p[1] - 4.5);
+        ctx.lineTo(p[0], p[1] - 4.5 * VS);
       }
       ctx.stroke();
       cyl(ctx, oi, cj, 0.32, 8, 4, CREAM, { n: 16 });
@@ -425,7 +425,7 @@ export const MODELS = {
         const a = (k / 12) * Math.PI * 2;
         const p = P(ci + Math.cos(a) * 1.42, cj + Math.sin(a) * 1.27, 0);
         ctx.moveTo(p[0], p[1]);
-        ctx.lineTo(p[0], p[1] - 21);
+        ctx.lineTo(p[0], p[1] - 21 * VS);
       }
       ctx.stroke();
       ctx.globalAlpha = 0.88;

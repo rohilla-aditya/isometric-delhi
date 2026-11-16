@@ -1,7 +1,14 @@
 // Canvas drawing: colour handling for day/dusk/night, isometric primitives,
 // and the per-tile ground and building painters.
 
-import { iso as P, hash2 } from './geo.js';
+// Model space: tiles are 32 x 16 px and heights are px times VS. Landmarks are
+// drawn in model space under a canvas transform that places them in the city;
+// VS lets a model keep its real height while its footprint is scaled.
+export let VS = 1;
+export function setVS(v) {
+  VS = v;
+}
+export const P = (i, j, z = 0) => [(i - j) * 16, (i + j) * 8 - z * VS];
 
 // ---------------------------------------------------------------- colour --
 
@@ -146,6 +153,7 @@ export function dome(ctx, ci, cj, r, z, h, col, o = {}) {
   const [X, Y] = P(ci, cj, z);
   const rx = r * 16 * R2;
   const ry = r * 8 * R2;
+  h *= VS;
   ctx.beginPath();
   if (o.onion) {
     ctx.moveTo(X - rx * 0.8, Y);
@@ -177,7 +185,7 @@ export function dome(ctx, ci, cj, r, z, h, col, o = {}) {
     ctx.lineWidth = 0.6;
     ctx.beginPath();
     ctx.moveTo(X, Y - h);
-    ctx.lineTo(X, Y - h - o.finial);
+    ctx.lineTo(X, Y - h - o.finial * VS);
     ctx.stroke();
   }
 }
@@ -187,6 +195,7 @@ export function shikhara(ctx, ci, cj, r, z, h, col, o = {}) {
   const [X, Y] = P(ci, cj, z);
   const rx = r * 16 * R2;
   const ry = r * 8 * R2;
+  h *= VS;
   ctx.beginPath();
   ctx.moveTo(X - rx, Y);
   ctx.quadraticCurveTo(X - rx * 1.02, Y - h * 0.75, X - rx * 0.2, Y - h);
@@ -214,9 +223,9 @@ export function shikhara(ctx, ci, cj, r, z, h, col, o = {}) {
   ctx.lineWidth = 0.6;
   ctx.beginPath();
   ctx.moveTo(X, Y - h);
-  ctx.lineTo(X, Y - h - 4);
+  ctx.lineTo(X, Y - h - 4 * VS);
   ctx.stroke();
-  if (o.flag) flag(ctx, X, Y - h - 4, o.flag, 3.5);
+  if (o.flag) flag(ctx, X, Y - h - 4 * VS, o.flag, 3.5);
 }
 
 export function flag(ctx, X, Y, colours, w = 5) {
@@ -234,9 +243,9 @@ export function pole(ctx, i, j, z, h, col = '#d0d0d0', w = 0.5) {
   ctx.lineWidth = w;
   ctx.beginPath();
   ctx.moveTo(X, Y);
-  ctx.lineTo(X, Y - h);
+  ctx.lineTo(X, Y - h * VS);
   ctx.stroke();
-  return [X, Y - h];
+  return [X, Y - h * VS];
 }
 
 /**
@@ -245,7 +254,7 @@ export function pole(ctx, i, j, z, h, col = '#d0d0d0', w = 0.5) {
  */
 export function arch(ctx, axis, plane, c, hw, z0, z1, col) {
   const pt = (u, z) => (axis === 'i' ? P(plane, u, z) : P(u, plane, z));
-  const rise = hw * 18;
+  const rise = (hw * 18) / VS; // keep arches round whatever the height scale
   const spring = z1 - rise;
   const pts = [pt(c - hw, z0), pt(c - hw, spring)];
   for (let k = 0; k <= 8; k++) {
@@ -290,230 +299,4 @@ export function tree(ctx, i, j, size, col, kind = 'round') {
   ctx.beginPath();
   ctx.arc(X - s * 0.28, Y - s * 1.85, s * 0.62, 0, Math.PI * 2);
   ctx.fill();
-}
-
-// --------------------------------------------------------------- ground --
-
-const GROUND = {
-  water: ['#5f9fb8'],
-  sand: ['#dccfa6', '#d6c89c', '#e0d4ae'],
-  lot: ['#d3cab6', '#cfc5b0', '#d8cfbc', '#cbc2ae'],
-  park: ['#9cc06a', '#95bb64', '#a2c470'],
-  forest: ['#869f56', '#7e9850', '#8ca55c'],
-  farm: ['#a9c46c', '#c6cf7a', '#8fb35b', '#d8c98a', '#b7d08a', '#9fbf62'],
-  lawn: ['#8fc75b'],
-  grass: ['#b4c78a', '#afc285'],
-  apron: ['#bcbbb5', '#b6b5ae'],
-  runway: ['#5e6166'],
-  plaza: ['#ddd3bf'],
-};
-
-export function groundColour(t) {
-  const list = GROUND[t.g] || GROUND.lot;
-  return list[Math.floor(t.v * 977) % list.length];
-}
-
-export function drawGround(ctx, t, N, detail) {
-  const { i, j } = t;
-  const col = groundColour(t);
-  rect(ctx, i, j, 1, 1, C(col));
-
-  if (detail >= 1) {
-    if (t.g === 'farm') {
-      // furrows
-      ctx.strokeStyle = C(col, 0.88);
-      ctx.lineWidth = 0.5;
-      ctx.beginPath();
-      const along = t.v > 0.5;
-      for (let k = 1; k < 4; k++) {
-        const u = k / 4;
-        const a = along ? P(i + u, j + 0.05) : P(i + 0.05, j + u);
-        const b = along ? P(i + u, j + 0.95) : P(i + 0.95, j + u);
-        ctx.moveTo(a[0], a[1]);
-        ctx.lineTo(b[0], b[1]);
-      }
-      ctx.stroke();
-    } else if (t.g === 'water' && detail >= 2 && t.v > 0.6) {
-      ctx.strokeStyle = C('#8cc0d2', 1);
-      ctx.lineWidth = 0.5;
-      const [x, y] = P(i + 0.5, j + 0.5);
-      ctx.beginPath();
-      ctx.moveTo(x - 4, y);
-      ctx.quadraticCurveTo(x - 2, y - 1.2, x, y);
-      ctx.quadraticCurveTo(x + 2, y + 1.2, x + 4, y);
-      ctx.stroke();
-    } else if (t.g === 'lawn' && t.road !== 'path') {
-      // the canals along Kartavya Path
-      rect(ctx, i, j + 0.38, 1, 0.24, C('#6fb0c8'), 0, false);
-    } else if (t.g === 'runway' && detail >= 2) {
-      const a = P(i + 0.3, j + 0.5);
-      const b = P(i + 0.7, j + 0.5);
-      ctx.strokeStyle = C('#f2f2f2', 1);
-      ctx.lineWidth = 0.7;
-      ctx.beginPath();
-      ctx.moveTo(a[0], a[1]);
-      ctx.lineTo(b[0], b[1]);
-      ctx.stroke();
-    }
-  }
-  if (t.street) {
-    const c = C('#8f8b85');
-    if (t.street & 2) rect(ctx, i + 0.32, j, 0.36, 1, c, 0, false);
-    if (t.street & 1) rect(ctx, i, j + 0.32, 1, 0.36, c, 0, false);
-  }
-
-  // Earth slab on the two front edges of the diorama.
-  const d = 18;
-  if (i === N - 1) fillPts(ctx, [P(i + 1, j, 0), P(i + 1, j + 1, 0), P(i + 1, j + 1, -d), P(i + 1, j, -d)], C('#7a5f45', 0.8));
-  if (j === N - 1) fillPts(ctx, [P(i, j + 1, 0), P(i + 1, j + 1, 0), P(i + 1, j + 1, -d), P(i, j + 1, -d)], C('#8d6e50', 1));
-}
-
-// ------------------------------------------------------------- objects --
-
-const TREE_COL = { forest: '#5f7f3a', park: '#5d8f3c', lutyens: '#4f8a3a', estate: '#5d8f3c', farm: '#6c9440', flood: '#7a9a48' };
-
-export function drawTileObject(ctx, t, detail) {
-  if (t.trees && !t.b) drawTrees(ctx, t, t.trees);
-  if (t.b) drawBuilding(ctx, t, detail);
-  if (t.trees && t.b) drawTrees(ctx, t, t.trees, true);
-}
-
-function drawTrees(ctx, t, n, beside = false) {
-  const { i, j } = t;
-  const kind = t.zone === 'forest' ? 'kikar' : 'round';
-  const col = TREE_COL[t.zone] || '#5d8f3c';
-  const pts = [];
-  for (let k = 0; k < n; k++) {
-    let u = 0.15 + hash2(i * 7 + k, j * 13, 5) * 0.7;
-    let v = 0.15 + hash2(i * 11, j * 3 + k, 9) * 0.7;
-    if (beside) {
-      u = 0.82;
-      v = 0.82;
-    }
-    pts.push([i + u, j + v]);
-  }
-  pts.sort((a, b) => a[0] + a[1] - b[0] - b[1]);
-  for (const [u, v] of pts) tree(ctx, u, v, 2.6 + hash2(Math.floor(u * 10), Math.floor(v * 10), 3) * 1.6, col, kind);
-}
-
-function drawBuilding(ctx, t, detail) {
-  const b = t.b;
-  const s = b.inset;
-  const i = t.i + s;
-  const j = t.j + s;
-  const a = 1 - 2 * s;
-  const night = mode === 'night';
-
-  switch (b.kind) {
-    case 'hut':
-      box(ctx, i, j, a, a, 0, 3, b.col);
-      prism(ctx, [[i - 0.04, j - 0.04], [i + a + 0.04, j - 0.04], [i + a + 0.04, j + a + 0.04], [i - 0.04, j + a + 0.04]], 3, 3, '#a88b5a', { topScale: 0.15 });
-      return;
-    case 'bungalow':
-      box(ctx, i, j, a, a * 0.8, 0, b.h, b.col, { topCol: '#e2dccf' });
-      box(ctx, i + a * 0.55, j + a * 0.8, a * 0.3, a * 0.18, 0, b.h * 0.6, '#ffffff');
-      if (night) windows(ctx, i, j, a, a * 0.8, b.h, 1, b.seed || t.v * 1e6, 0.5);
-      return;
-    case 'shed': {
-      box(ctx, i, j, a, a, 0, b.h, b.col);
-      if (detail >= 1) {
-        // sawtooth roof
-        const n = 3;
-        for (let k = 0; k < n; k++) {
-          const u = i + (k / n) * a;
-          const w = a / n;
-          fillPts(ctx, [P(u, j + a, b.h), P(u + w, j + a, b.h), P(u + w, j + a, b.h + 3)], C('#8d969e', 0.9));
-          fillPts(ctx, [P(u, j, b.h), P(u + w, j, b.h + 3), P(u + w, j + a, b.h + 3), P(u, j + a, b.h)], C('#c9ced2', 1));
-        }
-      }
-      return;
-    }
-    case 'glass': {
-      box(ctx, i, j, a, a, 0, b.h, b.col, { topCol: '#c7c9c8' });
-      if (detail >= 1) floorBands(ctx, i, j, a, a, b.h, b.floors, '#e9f1f5', 0.45);
-      if (night) windows(ctx, i, j, a, a, b.h, b.floors, b.seed, 0.45);
-      if (b.floors > 14) box(ctx, i + a * 0.3, j + a * 0.3, a * 0.4, a * 0.4, b.h, 4, '#b9bcbc');
-      return;
-    }
-    case 'mosque': {
-      box(ctx, i, j, a, a, 0, b.h, '#f1ede3');
-      dome(ctx, i + a / 2, j + a / 2, a * 0.28, b.h, 7, '#f6f3ec', { finial: 2 });
-      cyl(ctx, i + a * 0.85, j + a * 0.85, 0.05, b.h, 9, '#f1ede3', { n: 6 });
-      return;
-    }
-    default: {
-      box(ctx, i, j, a, a, 0, b.h, b.col);
-      if (detail >= 1) {
-        floorBands(ctx, i, j, a, a, b.h, b.floors, '#000000', 0.12);
-        // parapet
-        const pc = C(b.col, 0.85);
-        ctx.strokeStyle = pc;
-        ctx.lineWidth = 0.5;
-        const q = [P(i, j, b.h), P(i + a, j, b.h), P(i + a, j + a, b.h), P(i, j + a, b.h)];
-        ctx.beginPath();
-        ctx.moveTo(q[0][0], q[0][1]);
-        for (const p of q.slice(1)) ctx.lineTo(p[0], p[1]);
-        ctx.closePath();
-        ctx.stroke();
-      }
-      if (night) windows(ctx, i, j, a, a, b.h, b.floors, b.seed, 0.4);
-      if (b.tank) {
-        // the black plastic water tank on every Delhi roof
-        const tu = i + a * (0.25 + (b.seed % 7) / 20);
-        const tv = j + a * (0.25 + (b.seed % 5) / 14);
-        if (detail >= 1 && b.seed % 3 === 0) box(ctx, i + a * 0.62, j + a * 0.08, a * 0.26, a * 0.3, b.h, 3, b.col);
-        cyl(ctx, tu, tv, 0.07, b.h, 2.6, '#2b2d30', { n: 8, topCol: '#3a3d40', kt: 1 });
-      }
-    }
-  }
-}
-
-function floorBands(ctx, i, j, a, b, h, floors, col, alpha) {
-  ctx.globalAlpha = alpha;
-  ctx.strokeStyle = C(col, 1);
-  ctx.lineWidth = 0.4;
-  ctx.beginPath();
-  for (let f = 1; f < floors; f++) {
-    const z = (f / floors) * h;
-    let p = P(i, j + b, z);
-    ctx.moveTo(p[0], p[1]);
-    p = P(i + a, j + b, z);
-    ctx.lineTo(p[0], p[1]);
-    p = P(i + a, j, z);
-    ctx.lineTo(p[0], p[1]);
-  }
-  ctx.stroke();
-  ctx.globalAlpha = 1;
-}
-
-function windows(ctx, i, j, a, b, h, floors, seed, density) {
-  const fh = h / floors;
-  ctx.fillStyle = L('#ffd98a', 0.95);
-  const cols = 4;
-  for (let f = 0; f < floors; f++) {
-    const z = f * fh + fh * 0.35;
-    for (let c = 0; c < cols; c++) {
-      const u = (c + 0.3) / cols;
-      if (hash2(seed + f, c, 1) < density) {
-        const p0 = P(i + u * a, j + b, z);
-        const p1 = P(i + (u + 0.14) * a, j + b, z);
-        ctx.beginPath();
-        ctx.moveTo(p0[0], p0[1]);
-        ctx.lineTo(p1[0], p1[1]);
-        ctx.lineTo(p1[0], p1[1] - fh * 0.4);
-        ctx.lineTo(p0[0], p0[1] - fh * 0.4);
-        ctx.fill();
-      }
-      if (hash2(seed + f, c + 9, 2) < density) {
-        const p0 = P(i + a, j + u * b, z);
-        const p1 = P(i + a, j + (u + 0.14) * b, z);
-        ctx.beginPath();
-        ctx.moveTo(p0[0], p0[1]);
-        ctx.lineTo(p1[0], p1[1]);
-        ctx.lineTo(p1[0], p1[1] - fh * 0.4);
-        ctx.lineTo(p0[0], p0[1] - fh * 0.4);
-        ctx.fill();
-      }
-    }
-  }
 }

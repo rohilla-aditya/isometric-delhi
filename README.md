@@ -1,28 +1,29 @@
 # Isometric Delhi
 
-An explorable isometric diorama of Delhi, drawn live in the browser. The city
-is generated from real geography: the Yamuna, the Ring Roads, four metro
-lines, rail lines, ridge forests, the airport's runways and the land use of
-each neighbourhood. Then 25 hand-built landmarks are placed on top, from the
-Qutub Minar to the Signature Bridge.
+An explorable isometric diorama of **Delhi NCR**: Delhi, Gurugram, Noida,
+Greater Noida, Ghaziabad and Faridabad. Every building, road, park, canal and
+stretch of the Yamuna comes from [OpenStreetMap](https://www.openstreetmap.org),
+drawn in the browser as a SimCity-style city. On top of that sit 25 hand-built
+landmarks at their real size, from the Qutub Minar to the Signature Bridge.
 
-- **Drag** to pan, **scroll / pinch** to zoom, **click a landmark** for its
-  story (in English and Hindi). Arrow keys and `+`/`-` work too.
+- **Drag** to pan, **scroll / pinch** to zoom from the whole region down to
+  single houses, **click a landmark** for its story in English and Hindi.
+  Arrow keys and `+` / `-` work too.
 - **Day / Dusk / Night**: at night, windows, street lights and floodlit
   monuments come on.
-- Traffic (cars, autos, DTC buses) keeps left on the main roads, metro trains
-  run the Yellow, Blue, Violet and Airport Express lines, planes take off and
-  land at IGI, kites fly over Old Delhi, and black kites circle above Jama
-  Masjid.
-- Deep links: `/#red-fort`, `/#lotus-temple`, … open with that landmark
-  selected.
+- Traffic (cars, autos, buses) keeps left on the main roads, trains run on
+  the elevated metro in each line's colour, planes take off and land at IGI,
+  kites fly over the colonies and black kites circle Jama Masjid.
+- Deep links: `/#red-fort`, `/#lotus-temple`, … open on that landmark.
 
-It is a stylised map: one tile is about 185 m, and positions are good to a
-tile or two.
+Most Delhi buildings in OpenStreetMap have no height, so heights are guessed
+from the building's type and size where `height` or `building:levels` is
+missing.
 
 ## Run locally
 
-No build step and no dependencies, just Node 18+ for the dev server and tests.
+The site has no build step and no dependencies; Node 18+ runs the dev server
+and tests.
 
 ```bash
 cd isometric-delhi
@@ -30,25 +31,53 @@ npm start          # http://localhost:8080
 npm test
 ```
 
+## Map data
+
+`public/data/` is generated, not hand-written:
+
+```bash
+pip install -r tools/requirements.txt          # pyosmium, shapely, pillow
+osmium extract -b 76.83,28.33,77.56,28.89 india-latest.osm.pbf -o ncr.osm.pbf
+python tools/build_data.py ncr.osm.pbf
+```
+
+The `delhi-data` GitHub Actions workflow does exactly this: it downloads
+India from Geofabrik, cuts out the NCR, runs the pipeline and commits the
+result. It runs when `tools/` changes; run it from the Actions tab to pick up
+newer OpenStreetMap edits.
+
+The pipeline writes:
+
+- `meta.json`: bounds, projection and the list of cells.
+- `cells/<x>_<y>.bin`: one 2 km × 2 km square each, holding land use, roads,
+  rail, water and buildings in a compact binary format. The format is
+  documented at the top of `tools/build_data.py`. The browser fetches only
+  the cells in view.
+- `overview/*.webp` and `minimap.webp`: the whole region pre-rendered, used
+  when zoomed far out.
+
 ## How it works
 
 | File | Role |
 |---|---|
-| `public/js/data.js` | Geography as `[lat, lon]`: river, lakes, land-use zones, roads, rails, metro stations, landmarks and labels. |
-| `public/js/geo.js` | Projections: lat/lon ↔ tile grid ↔ isometric pixels, plus deterministic noise. |
-| `public/js/world.js` | Builds the 160 × 160 tile grid: zones, water, landmark footprints, rasterised roads, street grids, buildings and trees. Pure, so it runs in the tests. |
-| `public/js/draw.js` | Isometric primitives (boxes, prisms, domes, shikharas, trees) and day/dusk/night colour. |
-| `public/js/landmarks.js` | Models of each landmark. |
-| `public/js/renderer.js` | Depth-sorted scene and a chunk cache at several resolutions, so the static city is painted once and blitted each frame. |
-| `public/js/anim.js` | Everything that moves. |
+| `tools/build_data.py` | OpenStreetMap → cells + overview images. |
+| `public/js/proj.js` | Lat/lon ↔ metres ↔ isometric pixels. |
+| `public/js/cells.js` | Fetches and decodes cells on demand. |
+| `public/js/city.js` | Paints cells into cached chunks at six zoom levels: land use, roads, bridges, extruded buildings, trees in parks, the metro viaduct and landmarks, depth-sorted. |
+| `public/js/landmarks.js`, `draw.js` | Hand-built landmark models and the isometric primitives they use. |
+| `public/js/life.js` | Everything that moves. |
 | `public/js/main.js` | Camera, input, labels, minimap and UI. |
+| `public/js/data.js` | Landmark stories and place names. |
 
-To add a landmark, add an entry to `LANDMARKS` in `data.js` and a model under
-the same id in `landmarks.js`. The tests check that every landmark has a model,
-stays off the river and does not overlap another landmark's footprint.
+To add a landmark: add it to `LANDMARKS` in `data.js`, give it a model in
+`landmarks.js` and a real-world scale in `LANDMARK_SCALE` in `city.js`.
+OpenStreetMap buildings inside its footprint are hidden automatically.
 
 ## Deploy
 
-It is a static site: the root `render.yaml` publishes `public/` as a Render
-static site (`isometric-delhi`), with `npm test` as the build step. It reads no
-environment variables or secrets.
+It is a static site. The root `render.yaml` publishes `public/` as a Render
+static site (`isometric-delhi`), with `npm test` as the build step. It reads
+no environment variables or secrets.
+
+Map data © OpenStreetMap contributors, available under the
+[Open Database License](https://www.openstreetmap.org/copyright).

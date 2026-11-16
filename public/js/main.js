@@ -1,13 +1,14 @@
-import { generateWorld } from './world.js';
-import { iso as P, unIso, llToTile } from './geo.js';
-import { DISTRICT_LABELS } from './data.js';
-import { Scene, ChunkCache, CHUNK, LEVELS, renderOverview, setMode } from './renderer.js';
-import { Life } from './anim.js';
-import { modelHeight } from './landmarks.js';
+import { iso, unIso, llToEs, setMeta, worldBounds, ZK } from './proj.js';
+import { LANDMARKS, DISTRICT_LABELS } from './data.js';
+import { CellStore } from './cells.js';
+import { City, CHUNK, LEVELS, placeLandmarks } from './city.js';
+import { Life } from './life.js';
+import { setMode } from './draw.js';
 
+const DATA = 'data';
 const BG = { day: '#e9e2d3', dusk: '#e2b99a', night: '#0f1526' };
+const TINT = { day: null, dusk: 'rgba(255,190,150,0.28)', night: 'rgba(20,30,70,0.62)' };
 const FEATURED = new Set(['india-gate', 'red-fort', 'qutub-minar', 'lotus-temple', 'akshardham', 'connaught-place', 'rashtrapati-bhavan', 'humayun-tomb', 'igi-airport', 'jama-masjid', 'signature-bridge']);
-const MIN_ZOOM = 0.18;
 const MAX_ZOOM = 4;
 
 const $ = (id) => document.getElementById(id);
@@ -18,11 +19,14 @@ const mctx = mini.getContext('2d');
 
 const opts = { traffic: true, metro: true, labels: true };
 let mode = 'day';
-let world;
-let scene;
-let cache;
+let meta;
+let bounds;
+let city;
 let life;
-const overviews = {};
+let landmarks = [];
+let overview = null; // { tiles: [[img]], scale, x0, y0, size }
+let minimapImg = null;
+let minZoom = 0.01;
 let dpr = 1;
 let W = 0;
 let H = 0;
@@ -30,6 +34,7 @@ const cam = { x: 0, y: 0, zoom: 1 };
 let flight = null;
 let selected = null;
 let hovered = null;
+let dirty = true;
 
 function resize() {
   dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -37,78 +42,106 @@ function resize() {
   H = window.innerHeight;
   canvas.width = Math.round(W * dpr);
   canvas.height = Math.round(H * dpr);
+  if (bounds) minZoom = Math.min(W / (bounds.x1 - bounds.x0), H / (bounds.y1 - bounds.y0)) * 0.9;
 }
 
 function screenToWorld(sx, sy) {
   return [cam.x + (sx - W / 2) / cam.zoom, cam.y + (sy - H / 2) / cam.zoom];
 }
 
-function clampCam() {
-  const b = scene.bounds;
-  cam.x = Math.max(b.x0, Math.min(b.x1, cam.x));
-  cam.y = Math.max(b.y0, Math.min(b.y1, cam.y));
-  cam.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, cam.zoom));
+function toScreen(x, y) {
+  return [(x - cam.x) * cam.zoom + W / 2, (y - cam.y) * cam.zoom + H / 2];
 }
 
-function overview() {
-  if (!overviews[mode]) overviews[mode] = renderOverview(scene, 0.25, cache.opts);
-  return overviews[mode];
+function clampCam() {
+  cam.x = Math.max(bounds.x0, Math.min(bounds.x1, cam.x));
+  cam.y = Math.max(bounds.y0, Math.min(bounds.y1, cam.y));
+  cam.zoom = Math.max(minZoom, Math.min(MAX_ZOOM, cam.zoom));
+}
+
+function makeCanvas(w, h) {
+  if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(w, h);
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  return c;
 }
 
 // ------------------------------------------------------------------ draw --
 
+function drawOverview(x0, y0, x1, y1) {
+  if (!overview) return;
+  const { scale, size } = overview;
+  const tw = size / scale; // world px per tile
+  for (let ty = Math.max(0, Math.floor((y0 - overview.y0) / tw)); ty < overview.rows && ty * tw + overview.y0 < y1; ty++) {
+    for (let tx = Math.max(0, Math.floor((x0 - overview.x0) / tw)); tx < overview.cols && tx * tw + overview.x0 < x1; tx++) {
+      const img = overview.tiles[ty * overview.cols + tx];
+      if (img && img.complete && img.naturalWidth) ctx.drawImage(img, overview.x0 + tx * tw, overview.y0 + ty * tw, tw + 0.5 / cam.zoom, tw + 0.5 / cam.zoom);
+    }
+  }
+}
+
 function frame(now, dt) {
   if (flight) stepFlight(now);
-  life.update(dt);
+  const [vx0, vy0] = screenToWorld(0, 0);
+  const [vx1, vy1] = screenToWorld(W, H);
+  const view = { x0: vx0, y0: vy0, x1: vx1, y1: vy1, zoom: cam.zoom };
+  life.update(dt, view);
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = BG[mode];
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-
   const s = dpr * cam.zoom;
   ctx.setTransform(s, 0, 0, s, dpr * (W / 2 - cam.x * cam.zoom), dpr * (H / 2 - cam.y * cam.zoom));
   ctx.imageSmoothingEnabled = true;
 
-  const [vx0, vy0] = screenToWorld(0, 0);
-  const [vx1, vy1] = screenToWorld(W, H);
   const want = cam.zoom * dpr;
-  const level = LEVELS.find((l) => l >= want * 0.9) || LEVELS[LEVELS.length - 1];
-  const span = CHUNK / level;
-  const ov = overview();
-  const budgetEnd = performance.now() + 14;
-  let pending = 0;
-  for (let cy = Math.floor(vy0 / span); cy <= Math.floor(vy1 / span); cy++) {
-    for (let cx = Math.floor(vx0 / span); cx <= Math.floor(vx1 / span); cx++) {
-      const x0 = cx * span;
-      const y0 = cy * span;
-      const b = scene.bounds;
-      if (x0 > b.x1 || x0 + span < b.x0 || y0 > b.y1 || y0 + span < b.y0) continue;
-      let c = cache.get(level, cx, cy);
-      if (!c && performance.now() < budgetEnd) c = cache.render(level, cx, cy);
-      if (c) {
-        ctx.drawImage(c, x0, y0, span + 0.6 / cam.zoom, span + 0.6 / cam.zoom);
-      } else {
-        pending++;
-        const sx = (x0 - ov.x0) * ov.scale;
-        const sy = (y0 - ov.y0) * ov.scale;
-        ctx.drawImage(ov.canvas, sx, sy, span * ov.scale, span * ov.scale, x0, y0, span, span);
+  const level = LEVELS.find((l) => l >= want * 0.9);
+  if (!level || want < LEVELS[0] * 0.6) {
+    // far out: the pre-rendered overview of the whole region
+    drawOverview(vx0, vy0, vx1, vy1);
+    tint(vx0, vy0, vx1, vy1);
+  } else {
+    const span = CHUNK / level;
+    const budgetEnd = performance.now() + 14;
+    for (let cy = Math.floor(vy0 / span); cy <= Math.floor(vy1 / span); cy++) {
+      for (let cx = Math.floor(vx0 / span); cx <= Math.floor(vx1 / span); cx++) {
+        const x0 = cx * span;
+        const y0 = cy * span;
+        if (x0 > bounds.x1 || x0 + span < bounds.x0 || y0 > bounds.y1 || y0 + span < bounds.y0) continue;
+        let c = city.get(level, cx, cy);
+        if (!c && performance.now() < budgetEnd) c = city.render(level, cx, cy, makeCanvas);
+        if (c) ctx.drawImage(c, x0, y0, span + 0.6 / cam.zoom, span + 0.6 / cam.zoom);
+        else {
+          drawOverview(x0, y0, x0 + span, y0 + span);
+          tint(x0, y0, x0 + span, y0 + span);
+        }
       }
     }
   }
 
-  life.draw(ctx, { x0: vx0, y0: vy0, x1: vx1, y1: vy1, zoom: cam.zoom }, now / 1000, opts);
+  life.draw(ctx, view, opts);
   if (hovered || selected) outline(hovered || selected);
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (opts.labels) drawLabels();
   drawMinimap();
-  $('loading').hidden = true;
-  return pending;
+  if (overview) $('loading').hidden = true;
+}
+
+function tint(x0, y0, x1, y1) {
+  if (!TINT[mode]) return;
+  ctx.save();
+  ctx.globalCompositeOperation = 'multiply';
+  ctx.fillStyle = TINT[mode];
+  ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+  ctx.restore();
 }
 
 function outline(lm) {
-  const { i0, j0, i1, j1 } = lm;
-  const pts = [P(i0 - 0.15, j0 - 0.15), P(i1 + 1.15, j0 - 0.15), P(i1 + 1.15, j1 + 1.15), P(i0 - 0.15, j1 + 1.15)];
+  const [e0, s0, e1, s1] = lm.rect;
+  const pad = 6;
+  const pts = [iso(e0 - pad, s0 - pad), iso(e1 + pad, s0 - pad), iso(e1 + pad, s1 + pad), iso(e0 - pad, s1 + pad)];
   ctx.beginPath();
   pts.forEach(([x, y], k) => (k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
   ctx.closePath();
@@ -117,10 +150,6 @@ function outline(lm) {
   ctx.setLineDash([4 / cam.zoom, 3 / cam.zoom]);
   ctx.stroke();
   ctx.setLineDash([]);
-}
-
-function toScreen(x, y) {
-  return [(x - cam.x) * cam.zoom + W / 2, (y - cam.y) * cam.zoom + H / 2];
 }
 
 function drawLabels() {
@@ -135,15 +164,11 @@ function drawLabels() {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
-  // landmarks first: they win collisions
-  const list = [...world.landmarks].sort((a, b) => (b === selected) - (a === selected) || (FEATURED.has(b.id) - FEATURED.has(a.id)));
+  const list = [...landmarks].sort((a, b) => (b === selected) - (a === selected) || FEATURED.has(b.id) - FEATURED.has(a.id));
   for (const lm of list) {
-    const show = lm === selected || lm === hovered || cam.zoom >= 0.7 || (cam.zoom >= 0.3 && FEATURED.has(lm.id));
+    const show = lm === selected || lm === hovered || cam.zoom >= 0.18 || (cam.zoom >= 0.05 && FEATURED.has(lm.id));
     if (!show) continue;
-    const ci = (lm.i0 + lm.i1 + 1) / 2;
-    const cj = (lm.j0 + lm.j1 + 1) / 2;
-    const [wx, wy] = P(ci, cj, modelHeight(lm.id));
-    const [x, y] = toScreen(wx, wy);
+    const [x, y] = toScreen(...iso(lm.e, lm.s, lm.top));
     ctx.font = '600 12px "Inter", system-ui, sans-serif';
     const tw = ctx.measureText(lm.name).width;
     const r = { x0: x - tw / 2 - 8, x1: x + tw / 2 + 8, y0: y - 30, y1: y - 10 };
@@ -164,25 +189,25 @@ function drawLabels() {
     ctx.fillText(lm.name, x, y - 20);
   }
 
-  if (cam.zoom < 0.22 || cam.zoom > 1.8) return;
-  const alpha = cam.zoom > 1.2 ? (1.8 - cam.zoom) / 0.6 : 1;
-  for (const [name, lat, lon, kind] of DISTRICT_LABELS) {
-    const t = llToTile(lat, lon);
-    const [x, y] = toScreen(...P(t.i, t.j, 0));
-    const water = kind === 'water';
-    ctx.font = water ? 'italic 500 13px "Inter", system-ui, sans-serif' : '700 11px "Inter", system-ui, sans-serif';
+  if (cam.zoom > 0.6) return;
+  for (const [name, lat, lon, tier] of DISTRICT_LABELS) {
+    // tier 1: cities, always; tier 2: districts once closer in
+    if (tier === 2 && cam.zoom < 0.045) continue;
+    if (tier === 1 && cam.zoom > 0.12) continue;
+    const p = llToEs(lat, lon);
+    const [x, y] = toScreen(...iso(p.e, p.s));
+    const water = tier === 'water';
+    ctx.font = water ? 'italic 500 13px "Inter", system-ui, sans-serif' : tier === 1 ? '700 14px "Inter", system-ui, sans-serif' : '700 11px "Inter", system-ui, sans-serif';
     const label = water ? name : name.toUpperCase();
-    const tw = ctx.measureText(label).width + label.length * 1.2;
-    if (!fits({ x0: x - tw / 2, x1: x + tw / 2, y0: y - 8, y1: y + 8 })) continue;
-    ctx.globalAlpha = alpha;
+    const tw = ctx.measureText(label).width + label.length * 1.4;
+    if (!fits({ x0: x - tw / 2, x1: x + tw / 2, y0: y - 9, y1: y + 9 })) continue;
     ctx.lineWidth = 3;
     ctx.strokeStyle = night ? 'rgba(10,14,28,0.8)' : 'rgba(255,252,244,0.85)';
     ctx.fillStyle = water ? (night ? '#9cc7e0' : '#2f6f8f') : night ? '#d9d2c4' : '#5a4a3a';
-    if ('letterSpacing' in ctx) ctx.letterSpacing = water ? '0px' : '1.2px';
+    if ('letterSpacing' in ctx) ctx.letterSpacing = water ? '0px' : '1.3px';
     ctx.strokeText(label, x, y);
     ctx.fillText(label, x, y);
     if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
-    ctx.globalAlpha = 1;
   }
 }
 
@@ -197,20 +222,23 @@ function roundRect(x, y, w, h, r) {
 }
 
 function drawMinimap() {
-  const ov = overview();
+  if (!minimapImg || !minimapImg.complete || !minimapImg.naturalWidth) return;
   const mw = mini.clientWidth;
   const mh = mini.clientHeight;
   if (mini.width !== Math.round(mw * dpr)) {
     mini.width = Math.round(mw * dpr);
     mini.height = Math.round(mh * dpr);
   }
-  const k = Math.min(mw / ov.canvas.width, mh / ov.canvas.height);
-  const ox = (mw - ov.canvas.width * k) / 2;
-  const oy = (mh - ov.canvas.height * k) / 2;
+  const iw = minimapImg.naturalWidth;
+  const ih = minimapImg.naturalHeight;
+  const k = Math.min(mw / iw, mh / ih);
+  const ox = (mw - iw * k) / 2;
+  const oy = (mh - ih * k) / 2;
+  const sc = meta.minimap.scale;
   mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   mctx.clearRect(0, 0, mw, mh);
-  mctx.drawImage(ov.canvas, ox, oy, ov.canvas.width * k, ov.canvas.height * k);
-  const toM = (x, y) => [ox + (x - ov.x0) * ov.scale * k, oy + (y - ov.y0) * ov.scale * k];
+  mctx.drawImage(minimapImg, ox, oy, iw * k, ih * k);
+  const toM = (x, y) => [ox + (x - meta.minimap.x0) * sc * k, oy + (y - meta.minimap.y0) * sc * k];
   const cl = (v, m) => Math.max(1, Math.min(m - 1, v));
   let [a, b] = toM(...screenToWorld(0, 0));
   let [c, d] = toM(...screenToWorld(W, H));
@@ -218,13 +246,13 @@ function drawMinimap() {
   [b, d] = [cl(b, mh), cl(d, mh)];
   mctx.strokeStyle = mode === 'night' ? '#ffd27a' : '#c2410c';
   mctx.lineWidth = 1.5;
-  mctx.strokeRect(a, b, c - a, d - b);
-  mini._map = { ox, oy, k, ov };
+  mctx.strokeRect(a, b, Math.max(2, c - a), Math.max(2, d - b));
+  mini._map = { ox, oy, k, sc };
 }
 
 // -------------------------------------------------------------- camera --
 
-function flyTo(x, y, zoom, ms = 1100) {
+function flyTo(x, y, zoom, ms = 1300) {
   flight = { from: { ...cam }, to: { x, y, zoom }, t0: performance.now(), ms };
 }
 
@@ -232,20 +260,18 @@ function stepFlight(now) {
   const u = Math.min(1, (now - flight.t0) / flight.ms);
   const e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
   const { from, to } = flight;
-  // zoom out a little mid-flight for long hops
-  const dist = Math.hypot(to.x - from.x, to.y - from.y);
-  const dip = Math.min(0.5, dist / 4000) * Math.sin(Math.PI * e);
+  const dist = Math.hypot(to.x - from.x, to.y - from.y) * Math.min(from.zoom, to.zoom);
+  const dip = Math.min(0.75, dist / 3000) * Math.sin(Math.PI * e);
   cam.x = from.x + (to.x - from.x) * e;
   cam.y = from.y + (to.y - from.y) * e;
   cam.zoom = Math.exp(Math.log(from.zoom) + (Math.log(to.zoom) - Math.log(from.zoom)) * e) * (1 - dip);
   if (u >= 1) flight = null;
 }
 
-function focusLandmark(lm, zoom = Math.max(cam.zoom, 2)) {
-  const ci = (lm.i0 + lm.i1 + 1) / 2;
-  const cj = (lm.j0 + lm.j1 + 1) / 2;
-  const [x, y] = P(ci, cj, modelHeight(lm.id) * 0.4);
-  flyTo(x, y, zoom);
+function focusLandmark(lm) {
+  const [x, y] = iso(lm.e, lm.s, lm.top * 0.4);
+  const fit = Math.min(W, H) / (Math.max(lm.hw, lm.hd) * 2 + lm.top) / 1.6;
+  flyTo(x, y, Math.max(0.5, Math.min(3, fit)));
 }
 
 function select(lm, fly = true) {
@@ -253,7 +279,7 @@ function select(lm, fly = true) {
   const card = $('card');
   if (!lm) {
     card.hidden = true;
-    if (location.hash) setHash('');
+    setHash('');
     renderList();
     return;
   }
@@ -279,23 +305,23 @@ function setHash(id) {
 function pickLandmark(sx, sy) {
   const [x, y] = screenToWorld(sx, sy);
   let best = null;
-  for (const lm of world.landmarks) {
+  for (const lm of landmarks) {
     const s = lm.screen;
-    if (x < s.x0 + 6 || x > s.x1 - 6 || y < s.y0 + 10 || y > s.y1) continue;
-    // must be over the footprint or the model rising above it
-    const g = unIso(x, y);
-    const overFootprint = g.i >= lm.i0 - 0.3 && g.i <= lm.i1 + 1.3 && g.j >= lm.j0 - 0.3 && g.j <= lm.j1 + 1.3;
-    const ci = (lm.i0 + lm.i1 + 1) / 2;
-    const cj = (lm.j0 + lm.j1 + 1) / 2;
-    const [cx] = P(ci, cj);
-    const aboveIt = Math.abs(x - cx) < (lm.i1 - lm.i0 + lm.j1 - lm.j0 + 2) * 6 + 6;
-    if (!overFootprint && !aboveIt) continue;
-    if (!best || lm.i1 + lm.j1 > best.i1 + best.j1) best = lm;
+    if (x < s.x0 || x > s.x1 || y < s.y0 || y > s.y1) continue;
+    if (!best || lm.e + lm.s > best.e + best.s) best = lm;
   }
   return best;
 }
 
 // --------------------------------------------------------------- input --
+
+function zoomAt(sx, sy, z) {
+  const [wx, wy] = screenToWorld(sx, sy);
+  cam.zoom = Math.max(minZoom, Math.min(MAX_ZOOM, z));
+  cam.x = wx - (sx - W / 2) / cam.zoom;
+  cam.y = wy - (sy - H / 2) / cam.zoom;
+  clampCam();
+}
 
 function setupInput() {
   const pointers = new Map();
@@ -317,8 +343,7 @@ function setupInput() {
     if (pointers.has(e.pointerId)) pointers.set(e.pointerId, [e.clientX, e.clientY]);
     if (pinch && pointers.size === 2) {
       const [a, b] = [...pointers.values()];
-      const d = Math.hypot(a[0] - b[0], a[1] - b[1]);
-      zoomAt((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (pinch.zoom * d) / pinch.d);
+      zoomAt((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (pinch.zoom * Math.hypot(a[0] - b[0], a[1] - b[1])) / pinch.d);
       return;
     }
     if (drag) {
@@ -340,10 +365,7 @@ function setupInput() {
     }
   });
   const end = (e) => {
-    if (drag && drag.moved < 6 && pointers.size === 1) {
-      const lm = pickLandmark(e.clientX, e.clientY);
-      select(lm);
-    }
+    if (drag && drag.moved < 6 && pointers.size === 1) select(pickLandmark(e.clientX, e.clientY));
     pointers.delete(e.pointerId);
     if (pointers.size < 2) pinch = null;
     if (pointers.size === 0) drag = null;
@@ -354,18 +376,15 @@ function setupInput() {
   canvas.addEventListener('pointerleave', () => {
     hovered = null;
   });
-
   canvas.addEventListener(
     'wheel',
     (e) => {
       e.preventDefault();
       flight = null;
-      const k = Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0018));
-      zoomAt(e.clientX, e.clientY, cam.zoom * k);
+      zoomAt(e.clientX, e.clientY, cam.zoom * Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0018)));
     },
     { passive: false },
   );
-
   window.addEventListener('keydown', (e) => {
     if (e.target.closest('input, button') && e.key !== 'Escape') return;
     const step = 80 / cam.zoom;
@@ -379,15 +398,12 @@ function setupInput() {
     else return;
     clampCam();
   });
-
   const miniMove = (e) => {
     const m = mini._map;
     if (!m) return;
     const r = mini.getBoundingClientRect();
-    const mx = e.clientX - r.left;
-    const my = e.clientY - r.top;
-    cam.x = m.ov.x0 + (mx - m.ox) / (m.ov.scale * m.k);
-    cam.y = m.ov.y0 + (my - m.oy) / (m.ov.scale * m.k);
+    cam.x = meta.minimap.x0 + (e.clientX - r.left - m.ox) / (m.sc * m.k);
+    cam.y = meta.minimap.y0 + (e.clientY - r.top - m.oy) / (m.sc * m.k);
     flight = null;
     clampCam();
   };
@@ -400,21 +416,12 @@ function setupInput() {
   });
 }
 
-function zoomAt(sx, sy, z) {
-  const [wx, wy] = screenToWorld(sx, sy);
-  cam.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z));
-  cam.x = wx - (sx - W / 2) / cam.zoom;
-  cam.y = wy - (sy - H / 2) / cam.zoom;
-  clampCam();
-}
-
 // ------------------------------------------------------------------ UI --
 
 function renderList() {
   const ul = $('list');
   ul.replaceChildren();
-  const sorted = [...world.landmarks].sort((a, b) => a.name.localeCompare(b.name));
-  for (const lm of sorted) {
+  for (const lm of [...landmarks].sort((a, b) => a.name.localeCompare(b.name))) {
     const li = document.createElement('li');
     const b = document.createElement('button');
     b.type = 'button';
@@ -437,7 +444,7 @@ function renderList() {
 function setTimeOfDay(m) {
   mode = m;
   setMode(m);
-  cache.clear();
+  city.clear();
   document.documentElement.dataset.mode = m;
   for (const b of document.querySelectorAll('[data-time]')) b.setAttribute('aria-pressed', String(b.dataset.time === m));
 }
@@ -450,14 +457,13 @@ function setupUI() {
       opts[k] = !opts[k];
       b.setAttribute('aria-pressed', String(opts[k]));
       if (k === 'metro') {
-        cache.opts.metro = opts.metro;
-        cache.clear();
-        for (const key of Object.keys(overviews)) delete overviews[key];
+        city.opts.metro = opts.metro;
+        city.clear();
       }
     });
   }
-  $('zoom-in').addEventListener('click', () => zoomAt(W / 2, H / 2, cam.zoom * 1.4));
-  $('zoom-out').addEventListener('click', () => zoomAt(W / 2, H / 2, cam.zoom / 1.4));
+  $('zoom-in').addEventListener('click', () => zoomAt(W / 2, H / 2, cam.zoom * 1.5));
+  $('zoom-out').addEventListener('click', () => zoomAt(W / 2, H / 2, cam.zoom / 1.5));
   $('home').addEventListener('click', () => {
     select(null);
     home(true);
@@ -468,27 +474,44 @@ function setupUI() {
 }
 
 function home(animate) {
-  const t = llToTile(28.618, 77.215);
-  const [x, y] = P(t.i, t.j);
-  const zoom = Math.min(1.1, Math.max(0.35, W / 1500));
+  const p = llToEs(28.6129, 77.2295); // India Gate
+  const [x, y] = iso(p.e, p.s);
+  const zoom = 0.35;
   if (animate) flyTo(x, y, zoom);
   else Object.assign(cam, { x, y, zoom });
 }
 
 // ---------------------------------------------------------------- boot --
 
-function boot() {
+function loadImage(src) {
+  const img = new Image();
+  img.decoding = 'async';
+  img.src = src;
+  return img;
+}
+
+async function boot() {
+  meta = await (await fetch(`${DATA}/meta.json`)).json();
+  setMeta(meta);
+  bounds = worldBounds(meta);
   resize();
-  world = generateWorld();
-  scene = new Scene(world);
-  cache = new ChunkCache(scene);
-  life = new Life(world);
+  const ov = meta.overview;
+  overview = { ...ov, tiles: [] };
+  for (let ty = 0; ty < ov.rows; ty++) for (let tx = 0; tx < ov.cols; tx++) overview.tiles.push(loadImage(`${DATA}/overview/${tx}_${ty}.webp`));
+  minimapImg = loadImage(`${DATA}/minimap.webp`);
+
+  landmarks = placeLandmarks(LANDMARKS);
+  const store = new CellStore(meta, DATA, () => {
+    dirty = true;
+  });
+  city = new City(meta, store, landmarks, meta.metroColours);
+  life = new Life(meta, store, meta.metroColours);
   setMode(mode);
   document.documentElement.dataset.mode = mode;
   setupInput();
   setupUI();
   home(false);
-  const fromHash = world.landmarks.find((l) => '#' + l.id === location.hash);
+  const fromHash = landmarks.find((l) => '#' + l.id === location.hash);
   if (fromHash) select(fromHash);
 
   window.addEventListener('resize', resize);
@@ -500,7 +523,12 @@ function boot() {
     requestAnimationFrame(loop);
   };
   requestAnimationFrame(loop);
-  window.__delhi = { cam, world, select, setTimeOfDay, flyTo };
+  window.__delhi = { cam, select, setTimeOfDay, flyTo, landmarks, get city() { return city; } };
+  void dirty;
+  void unIso;
+  void ZK;
 }
 
-requestAnimationFrame(() => setTimeout(boot, 0));
+boot().catch((err) => {
+  $('loading').querySelector('p').textContent = 'Could not load the map data. ' + err.message;
+});

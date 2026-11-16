@@ -1,0 +1,4 @@
+# Only for tools/build_data.py; the site itself has no dependencies.
+osmium==4.0.2
+shapely==2.0.6
+pillow==11.0.0

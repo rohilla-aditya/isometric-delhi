@@ -1,167 +1,6 @@
-// Geography of Delhi used to build the isometric map.
-//
-// Everything here is plain [lat, lon] data, approximate and hand-picked from
-// public maps. The map is a stylised diorama, not a survey: positions are good
-// to a tile or two (one tile is roughly 185 m), which is plenty to put the Red
-// Fort on the right bank of the Yamuna and Connaught Place at the centre.
+// Hand-picked data layered on top of the OpenStreetMap city: the landmarks
+// that get hand-built models, and the place names shown on the map.
 
-export const BOUNDS = { latMin: 28.475, latMax: 28.74, lonMin: 77.05, lonMax: 77.35 };
-export const GRID = 160;
-
-// The Yamuna, north to south.
-export const YAMUNA = [
-  [28.745, 77.212], [28.73, 77.22], [28.715, 77.228], [28.7, 77.233],
-  [28.685, 77.236], [28.67, 77.24], [28.66, 77.248], [28.645, 77.256],
-  [28.63, 77.258], [28.615, 77.262], [28.6, 77.267], [28.585, 77.275],
-  [28.57, 77.285], [28.555, 77.298], [28.54, 77.305], [28.52, 77.312],
-  [28.5, 77.318], [28.47, 77.325],
-];
-
-// Lakes as circles; r is in tiles.
-export const LAKES = [
-  { name: 'Hauz Khas Lake', c: [28.5545, 77.1925], r: 1.3 },
-  { name: 'Bhalswa Lake', c: [28.7385, 77.163], r: 2.2 },
-  { name: 'Sanjay Lake', c: [28.613, 77.303], r: 1.4 },
-  { name: 'Purana Qila Lake', c: [28.6075, 77.2405], r: 0.7 },
-];
-
-// Land use. Later entries win. Polygons are [lat, lon] rings; circles carry a
-// radius in tiles.
-export const ZONES = [
-  // Outer farmland in the north and north-west.
-  { type: 'farm', poly: [[28.745, 77.04], [28.745, 77.2], [28.728, 77.2], [28.722, 77.12], [28.703, 77.085], [28.682, 77.04]] },
-  { type: 'farm', poly: [[28.6, 77.04], [28.6, 77.06], [28.555, 77.065], [28.53, 77.04]] },
-  // Chhatarpur farmhouses south of Vasant Kunj.
-  { type: 'estate', poly: [[28.515, 77.15], [28.515, 77.205], [28.49, 77.205], [28.49, 77.15]] },
-  // Unplanned, dense trans-Yamuna and south.
-  { type: 'dense', poly: [[28.735, 77.25], [28.735, 77.36], [28.64, 77.36], [28.635, 77.3], [28.645, 77.255]] },
-  { type: 'dense', poly: [[28.52, 77.225], [28.52, 77.245], [28.5, 77.245], [28.5, 77.225]] },
-  { type: 'dense', poly: [[28.69, 77.12], [28.69, 77.16], [28.67, 77.16], [28.67, 77.12]] },
-  // Planned sub-cities.
-  { type: 'midrise', poly: [[28.63, 77.04], [28.63, 77.075], [28.598, 77.078], [28.575, 77.07], [28.565, 77.04]] },
-  { type: 'midrise', poly: [[28.735, 77.085], [28.735, 77.13], [28.7, 77.135], [28.7, 77.09]] },
-  { type: 'midrise', poly: [[28.625, 77.28], [28.625, 77.31], [28.595, 77.31], [28.595, 77.28]] },
-  { type: 'midrise', poly: [[28.535, 77.145], [28.535, 77.17], [28.515, 77.17], [28.515, 77.145]] },
-  // Gurugram and Noida skylines.
-  { type: 'towers', poly: [[28.475, 77.04], [28.512, 77.04], [28.512, 77.105], [28.495, 77.13], [28.475, 77.13]] },
-  { type: 'towers', poly: [[28.6, 77.312], [28.6, 77.36], [28.515, 77.36], [28.515, 77.33], [28.555, 77.31]] },
-  // Industrial estates.
-  { type: 'industrial', poly: [[28.54, 77.262], [28.54, 77.285], [28.52, 77.285], [28.52, 77.262]] },
-  { type: 'industrial', c: [28.628, 77.14], r: 3.5 },
-  { type: 'industrial', c: [28.7, 77.165], r: 3.5 },
-  { type: 'industrial', c: [28.637, 77.118], r: 3 },
-  // Old Delhi: Shahjahanabad.
-  { type: 'old', poly: [[28.667, 77.215], [28.667, 77.246], [28.641, 77.246], [28.641, 77.215]] },
-  // Lutyens' Delhi and Chanakyapuri: bungalows under trees.
-  { type: 'lutyens', poly: [[28.636, 77.192], [28.636, 77.232], [28.6, 77.237], [28.583, 77.226], [28.582, 77.17], [28.6, 77.168]] },
-  // Commercial centres.
-  { type: 'commercial', c: [28.6315, 77.2167], r: 5.5 },
-  { type: 'commercial', c: [28.549, 77.252], r: 2.5 },
-  { type: 'commercial', c: [28.651, 77.19], r: 3 },
-  { type: 'commercial', c: [28.568, 77.187], r: 1.8 },
-  { type: 'commercial', c: [28.548, 77.122], r: 2.6 },
-  { type: 'commercial', c: [28.629, 77.241], r: 2 },
-  { type: 'commercial', c: [28.57, 77.322], r: 2.5 },
-  // Ridge forests.
-  { type: 'forest', poly: [[28.648, 77.182], [28.645, 77.198], [28.628, 77.2], [28.603, 77.183], [28.596, 77.164], [28.62, 77.163]] },
-  { type: 'forest', poly: [[28.557, 77.152], [28.556, 77.178], [28.536, 77.183], [28.524, 77.168], [28.536, 77.148]] },
-  { type: 'forest', poly: [[28.503, 77.205], [28.503, 77.252], [28.475, 77.272], [28.475, 77.195]] },
-  { type: 'forest', poly: [[28.688, 77.217], [28.69, 77.223], [28.672, 77.227], [28.667, 77.221]] },
-  // Airport.
-  { type: 'airport', poly: [[28.588, 77.04], [28.588, 77.108], [28.562, 77.126], [28.532, 77.118], [28.532, 77.04]] },
-  // Gardens and green lungs.
-  { type: 'park', c: [28.5931, 77.2197], r: 2.2 }, // Lodhi Garden
-  { type: 'park', c: [28.5835, 77.1925], r: 1.8 }, // Nehru Park
-  { type: 'park', c: [28.555, 77.196], r: 2.2 }, // Deer Park, Hauz Khas
-  { type: 'park', c: [28.5955, 77.2445], r: 1.6 }, // Sunder Nursery
-  { type: 'park', c: [28.597, 77.231], r: 2.2 }, // Delhi Golf Club
-  { type: 'park', c: [28.623, 77.197], r: 1.6 }, // Talkatora Garden
-  { type: 'park', c: [28.726, 77.215], r: 2.5 }, // Yamuna Biodiversity Park
-  { type: 'park', c: [28.72, 77.11], r: 1.6 }, // Japanese Park, Rohini
-  { type: 'park', c: [28.513, 77.197], r: 1.4 }, // Garden of Five Senses
-  { type: 'park', poly: [[28.658, 77.244], [28.658, 77.252], [28.628, 77.256], [28.628, 77.249]] }, // Rajghat and riverside memorials
-  { type: 'park', c: [28.6, 77.256], r: 1.8 }, // Millennium Park
-  { type: 'park', c: [28.6129, 77.2295], r: 3.2 }, // India Gate C-Hexagon
-  // Kartavya Path lawns between Raisina Hill and India Gate.
-  { type: 'lawn', poly: [[28.6155, 77.2105], [28.6155, 77.227], [28.6103, 77.227], [28.6103, 77.2105]] },
-];
-
-// Roads. "major" carries traffic; "avenue" is quieter.
-export const ROADS = [
-  { name: 'Ring Road', cls: 'major', loop: true, pts: [
-    [28.71, 77.18], [28.69, 77.155], [28.665, 77.13], [28.645, 77.122], [28.63, 77.135],
-    [28.592, 77.162], [28.578, 77.175], [28.568, 77.207], [28.57, 77.225], [28.57, 77.24],
-    [28.572, 77.258], [28.59, 77.259], [28.625, 77.253], [28.645, 77.249], [28.668, 77.231],
-    [28.69, 77.227], [28.702, 77.226], [28.71, 77.2] ] },
-  { name: 'Outer Ring Road', cls: 'major', pts: [
-    [28.735, 77.17], [28.72, 77.13], [28.7, 77.1], [28.672, 77.07], [28.64, 77.075],
-    [28.62, 77.08], [28.59, 77.11], [28.565, 77.155], [28.555, 77.17], [28.533, 77.208],
-    [28.537, 77.226], [28.548, 77.25], [28.552, 77.268], [28.535, 77.29], [28.52, 77.3] ] },
-  { name: 'NH 48', cls: 'major', pts: [[28.592, 77.162], [28.565, 77.135], [28.545, 77.12], [28.51, 77.1], [28.475, 77.075]] },
-  { name: 'Mathura Road', cls: 'major', pts: [[28.616, 77.236], [28.605, 77.244], [28.589, 77.25], [28.572, 77.258], [28.55, 77.278], [28.52, 77.292], [28.49, 77.305], [28.475, 77.31]] },
-  { name: 'Aurobindo Marg', cls: 'major', pts: [[28.6, 77.212], [28.568, 77.207], [28.548, 77.204], [28.524, 77.19], [28.505, 77.175], [28.475, 77.15]] },
-  { name: 'DND Flyway', cls: 'major', pts: [[28.572, 77.258], [28.575, 77.28], [28.577, 77.31], [28.57, 77.35]] },
-  { name: 'NH 9', cls: 'major', pts: [[28.59, 77.259], [28.605, 77.275], [28.62, 77.305], [28.63, 77.35]] },
-  { name: 'Vikas Marg', cls: 'major', pts: [[28.629, 77.241], [28.631, 77.26], [28.632, 77.285], [28.64, 77.35]] },
-  { name: 'GT Karnal Road', cls: 'major', pts: [[28.668, 77.231], [28.69, 77.205], [28.71, 77.18], [28.745, 77.16]] },
-  { name: 'Rohtak Road', cls: 'major', pts: [[28.655, 77.205], [28.665, 77.16], [28.672, 77.11], [28.68, 77.04]] },
-  { name: 'Najafgarh Road', cls: 'major', pts: [[28.645, 77.18], [28.648, 77.14], [28.645, 77.122], [28.625, 77.08], [28.61, 77.04]] },
-  { name: 'Mehrauli–Gurgaon Road', cls: 'major', pts: [[28.524, 77.19], [28.505, 77.16], [28.49, 77.12], [28.475, 77.1]] },
-  { name: 'Wazirabad Road', cls: 'major', pts: [[28.71, 77.2], [28.7046, 77.218], [28.7046, 77.255], [28.698, 77.29]] },
-  { name: 'Airport Road', cls: 'major', pts: [[28.545, 77.12], [28.552, 77.1], [28.556, 77.093]] },
-  { name: 'Chandni Chowk', cls: 'avenue', pts: [[28.6562, 77.2375], [28.6565, 77.2225]] },
-  { name: 'Netaji Subhash Marg', cls: 'avenue', pts: [[28.6455, 77.2375], [28.668, 77.231]] },
-  { name: 'Minto Road', cls: 'avenue', pts: [[28.6355, 77.2185], [28.645, 77.226], [28.6455, 77.2375]] },
-  { name: 'Janpath', cls: 'avenue', pts: [[28.627, 77.218], [28.6129, 77.219]] },
-  { name: 'Kasturba Gandhi Marg', cls: 'avenue', pts: [[28.6275, 77.2205], [28.6145, 77.2265]] },
-  { name: 'Akbar Road', cls: 'avenue', pts: [[28.611, 77.228], [28.6, 77.213]] },
-  { name: 'Lodhi Road', cls: 'avenue', pts: [[28.59, 77.205], [28.588, 77.235], [28.589, 77.25]] },
-  { name: 'Shanti Path', cls: 'avenue', pts: [[28.61, 77.193], [28.592, 77.183], [28.578, 77.175]] },
-  { name: 'Baba Kharak Singh Marg', cls: 'avenue', pts: [[28.6275, 77.2135], [28.62, 77.204]] },
-  { name: 'ITO–Tilak Marg', cls: 'avenue', pts: [[28.6145, 77.2325], [28.629, 77.241]] },
-];
-
-// The ceremonial axis gets its own red-gravel boulevard.
-export const KARTAVYA_PATH = { name: 'Kartavya Path', pts: [[28.6129, 77.2055], [28.6129, 77.2275]] };
-
-export const RAILWAYS = [
-  { name: 'Northern Railway', pts: [[28.745, 77.185], [28.69, 77.2], [28.661, 77.226], [28.643, 77.2195], [28.62, 77.2], [28.6, 77.19], [28.56, 77.17], [28.5, 77.14], [28.475, 77.125]] },
-  { name: 'Old Iron Bridge line', pts: [[28.661, 77.226], [28.663, 77.243], [28.664, 77.26], [28.672, 77.3], [28.68, 77.35]] },
-  { name: 'Nizamuddin line', pts: [[28.643, 77.2195], [28.63, 77.235], [28.588, 77.253], [28.55, 77.27], [28.5, 77.298], [28.475, 77.31]] },
-];
-
-export const METRO = [
-  { id: 'yellow', name: 'Yellow Line', color: '#f2c618', stations: [
-    ['Samaypur Badli', 28.745, 77.138], ['Jahangirpuri', 28.726, 77.163], ['Azadpur', 28.707, 77.18],
-    ['Vishwavidyalaya', 28.695, 77.215], ['Kashmere Gate', 28.667, 77.228], ['Chandni Chowk', 28.658, 77.23],
-    ['New Delhi', 28.643, 77.222], ['Rajiv Chowk', 28.633, 77.219], ['Central Secretariat', 28.615, 77.212],
-    ['INA', 28.575, 77.209], ['Hauz Khas', 28.543, 77.206], ['Qutub Minar', 28.513, 77.186],
-    ['Sultanpur', 28.499, 77.161], ['Guru Dronacharya', 28.482, 77.103] ] },
-  { id: 'blue', name: 'Blue Line', color: '#2f6fd6', stations: [
-    ['Dwarka', 28.615, 77.05], ['Janakpuri West', 28.629, 77.078], ['Rajouri Garden', 28.649, 77.123],
-    ['Kirti Nagar', 28.656, 77.151], ['Karol Bagh', 28.644, 77.189], ['Rajiv Chowk', 28.633, 77.219],
-    ['Mandi House', 28.626, 77.234], ['Indraprastha', 28.62, 77.25], ['Yamuna Bank', 28.623, 77.267],
-    ['Akshardham', 28.618, 77.279], ['Mayur Vihar', 28.604, 77.289], ['Noida Sector 15', 28.585, 77.312],
-    ['Botanical Garden', 28.564, 77.334], ['Noida City Centre', 28.575, 77.35] ] },
-  { id: 'violet', name: 'Violet Line', color: '#8b3fb0', stations: [
-    ['Kashmere Gate', 28.667, 77.228], ['Lal Qila', 28.657, 77.236], ['ITO', 28.628, 77.241],
-    ['Mandi House', 28.626, 77.234], ['Khan Market', 28.603, 77.228], ['JLN Stadium', 28.59, 77.233],
-    ['Lajpat Nagar', 28.57, 77.236], ['Kalkaji Mandir', 28.55, 77.258], ['Govind Puri', 28.544, 77.264],
-    ['Mohan Estate', 28.52, 77.288], ['Badarpur', 28.493, 77.303], ['Sarai', 28.475, 77.31] ] },
-  { id: 'orange', name: 'Airport Express', color: '#e8762d', stations: [
-    ['New Delhi', 28.643, 77.222], ['Shivaji Stadium', 28.629, 77.211], ['Dhaula Kuan', 28.592, 77.162],
-    ['Aerocity', 28.549, 77.121], ['IGI Airport', 28.556, 77.087], ['Dwarka Sector 21', 28.553, 77.058] ] },
-];
-
-// Airport runways, as [lat, lon] end points; drawn on the airport zone.
-export const RUNWAYS = [
-  [[28.577, 77.068], [28.577, 77.106]],
-  [[28.542, 77.066], [28.542, 77.104]],
-  [[28.562, 77.05], [28.583, 77.075]],
-];
-
-// Landmarks. w is the footprint along longitude (east), d along latitude
-// (south), both in tiles; the footprint is centred on [lat, lon].
 export const LANDMARKS = [
   { id: 'india-gate', name: 'India Gate', hi: 'इंडिया गेट', lat: 28.6129, lon: 77.2295, w: 2, d: 2,
     era: '1931', text: 'The All-India War Memorial: a 42 m arch by Edwin Lutyens bearing the names of soldiers who died in the First World War. It anchors the east end of Kartavya Path.' },
@@ -215,16 +54,26 @@ export const LANDMARKS = [
     era: '2010', text: 'Terminal 3 of Indira Gandhi International, India’s busiest airport.' },
 ];
 
+// [name, lat, lon, tier]: tier 1 names whole cities (shown zoomed out),
+// tier 2 names neighbourhoods (shown closer in).
 export const DISTRICT_LABELS = [
-  ['Old Delhi', 28.66, 77.228], ['Karol Bagh', 28.652, 77.19], ['Paharganj', 28.645, 77.21],
-  ['Civil Lines', 28.681, 77.225], ['North Campus', 28.69, 77.208], ['Model Town', 28.715, 77.19],
-  ['Rohini', 28.718, 77.105], ['Pitampura', 28.698, 77.135], ['Punjabi Bagh', 28.668, 77.13],
-  ['Rajouri Garden', 28.646, 77.12], ['Janakpuri', 28.62, 77.085], ['Dwarka', 28.597, 77.058],
-  ['Aerocity', 28.548, 77.122], ['Vasant Kunj', 28.525, 77.157], ['Mehrauli', 28.515, 77.18],
-  ['Saket', 28.527, 77.21], ['Greater Kailash', 28.543, 77.238], ['Hauz Khas', 28.548, 77.205],
-  ['Lajpat Nagar', 28.567, 77.244], ['Defence Colony', 28.574, 77.232], ['Nehru Place', 28.549, 77.252],
-  ['Chanakyapuri', 28.596, 77.186], ['Lutyens’ Delhi', 28.604, 77.21], ['Okhla', 28.53, 77.275],
-  ['Mayur Vihar', 28.607, 77.293], ['Laxmi Nagar', 28.634, 77.277], ['Preet Vihar', 28.643, 77.297],
-  ['Shahdara', 28.674, 77.29], ['Noida', 28.57, 77.335], ['Gurugram', 28.492, 77.08],
-  ['Asola Bhatti', 28.488, 77.228], ['Central Ridge', 28.627, 77.18], ['Yamuna', 28.69, 77.238, 'water'],
+  ['New Delhi', 28.6139, 77.209, 1], ['Gurugram', 28.4595, 77.0266, 1], ['Noida', 28.5355, 77.391, 1],
+  ['Greater Noida', 28.4744, 77.504, 1], ['Ghaziabad', 28.6692, 77.4538, 1], ['Faridabad', 28.4089, 77.3178, 1],
+  ['Old Delhi', 28.656, 77.228, 2], ['Karol Bagh', 28.652, 77.19, 2], ['Paharganj', 28.645, 77.21, 2],
+  ['Civil Lines', 28.681, 77.225, 2], ['North Campus', 28.69, 77.208, 2], ['Model Town', 28.715, 77.19, 2],
+  ['Rohini', 28.718, 77.105, 2], ['Pitampura', 28.698, 77.135, 2], ['Punjabi Bagh', 28.668, 77.13, 2],
+  ['Rajouri Garden', 28.646, 77.12, 2], ['Janakpuri', 28.62, 77.085, 2], ['Dwarka', 28.585, 77.045, 2],
+  ['Najafgarh', 28.609, 76.98, 2], ['Narela', 28.853, 77.093, 2], ['Bawana', 28.8, 77.035, 2],
+  ['Aerocity', 28.548, 77.122, 2], ['Vasant Kunj', 28.525, 77.157, 2], ['Mehrauli', 28.515, 77.18, 2],
+  ['Saket', 28.527, 77.21, 2], ['Greater Kailash', 28.543, 77.238, 2], ['Hauz Khas', 28.548, 77.205, 2],
+  ['Lajpat Nagar', 28.567, 77.244, 2], ['Defence Colony', 28.574, 77.232, 2], ['Nehru Place', 28.549, 77.252, 2],
+  ['Chanakyapuri', 28.596, 77.186, 2], ['Okhla', 28.53, 77.275, 2], ['Sangam Vihar', 28.497, 77.24, 2],
+  ['Mayur Vihar', 28.607, 77.293, 2], ['Laxmi Nagar', 28.634, 77.277, 2], ['Preet Vihar', 28.643, 77.297, 2],
+  ['Shahdara', 28.674, 77.29, 2], ['Seelampur', 28.67, 77.27, 2],
+  ['Cyber City', 28.495, 77.089, 2], ['Golf Course Road', 28.45, 77.1, 2], ['Udyog Vihar', 28.505, 77.075, 2],
+  ['Sohna Road', 28.415, 77.04, 2], ['Manesar Road', 28.4, 76.99, 2],
+  ['Sector 18', 28.57, 77.325, 2], ['Noida Expressway', 28.5, 77.39, 2], ['Indirapuram', 28.64, 77.37, 2],
+  ['Vaishali', 28.645, 77.34, 2], ['Raj Nagar', 28.685, 77.45, 2], ['Knowledge Park', 28.46, 77.49, 2],
+  ['NIT Faridabad', 28.39, 77.3, 2], ['Ballabhgarh', 28.34, 77.32, 2],
+  ['Asola Bhatti', 28.488, 77.228, 2], ['Central Ridge', 28.627, 77.18, 2], ['Yamuna', 28.69, 77.238, 'water'],
 ];
