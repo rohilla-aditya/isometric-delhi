@@ -10,6 +10,9 @@ import { MODELS } from './landmarks.js';
 import { hash2 } from './geo.js';
 
 export const CHUNK = 512;
+// Chunks are painted at half resolution and shown with hard pixel edges, so the
+// city reads as pixel art; 2 means one art pixel per 2 x 2 screen pixels.
+export const PIXEL = 2;
 export const LEVELS = [1 / 8, 1 / 4, 1 / 2, 1, 2, 4, 8];
 export const MAX_H = 320; // tallest thing, in metres, for culling
 
@@ -18,58 +21,60 @@ const AREA_STYLE = {
   2: '#d6cdc6', // commercial
   3: '#cdc8c0', // industrial
   4: '#c5d08f', // farmland
-  5: '#b5cc85', // grass
-  6: '#a3c876', // park
-  7: '#88a65c', // forest
+  5: '#a9cf73', // grass
+  6: '#8fc65c', // park
+  7: '#6f9e44', // forest
   8: '#e0d2aa', // sand
   9: '#b9c4a0', // cemetery
   10: '#c9c7b2', // military
   11: '#cfd3c0', // aerodrome
   12: '#bebdb7', // apron
-  13: '#9dc46e', // pitch
-  14: '#6aa5bf', // water
+  13: '#7fbf55', // pitch
+  14: '#4f9cc4', // water
   15: '#cbc3b5', // railway
   16: '#d8cdb6', // construction
   17: '#e2d8c6', // plaza
 };
 const AREA_ORDER = [1, 2, 3, 15, 10, 11, 16, 4, 8, 5, 9, 6, 7, 13, 12, 17, 14];
-const LAND = '#e3dccb';
+const LAND = '#e2d8c2';
 
 // metres wide, casing colour, fill colour, minimum level to draw
 const LINE_STYLE = {
-  11: [14, null, '#6aa5bf', 1 / 8], // river
-  12: [12, null, '#6aa5bf', 1 / 8], // canal
-  13: [5, null, '#7fb0c4', 1 / 2], // drain
-  15: [5, '#d8cfbf', '#e9e2d4', 1], // pedestrian
-  7: [4.5, '#d2cbbd', '#f1ede4', 1], // service
-  6: [7, '#c9c1b1', '#f6f2ea', 1 / 2], // street
-  5: [10, '#bfb5a2', '#fbf7ee', 1 / 4], // tertiary
-  4: [13, '#b8a98d', '#fff6dd', 1 / 8], // secondary
-  3: [16, '#b39a74', '#ffe9b8', 1 / 8], // primary
-  2: [20, '#a8875d', '#f9d58c', 1 / 8], // trunk
-  1: [24, '#9a7650', '#f3b86a', 1 / 8], // motorway
+  11: [14, null, '#4f9cc4', 1 / 8], // river
+  12: [12, null, '#4f9cc4', 1 / 8], // canal
+  13: [5, null, '#6aa9c8', 1 / 2], // drain
+  15: [5, '#cfc4ae', '#e6dcc6', 1], // pedestrian
+  7: [4.5, '#d3cbbb', '#9a9a9e', 1], // service
+  6: [7, '#d9d1c1', '#8b8c91', 1 / 2], // street
+  5: [10, '#ddd5c5', '#7f8086', 1 / 4], // tertiary
+  4: [13, '#ddd5c5', '#76777d', 1 / 8], // secondary
+  3: [16, '#e0d8c8', '#6c6d74', 1 / 8], // primary
+  2: [20, '#e0d8c8', '#63646b', 1 / 8], // trunk
+  1: [24, '#e3dbcb', '#5a5b62', 1 / 8], // motorway
   10: [18, null, '#a9a8a2', 1 / 4], // taxiway
-  9: [45, null, '#6a6c70', 1 / 8], // runway
-  8: [5, null, '#a39480', 1 / 4], // rail
+  9: [45, null, '#5e6066', 1 / 8], // runway
+  8: [5, null, '#9c8c78', 1 / 4], // rail
 };
 const LINE_ORDER = [11, 12, 13, 15, 7, 6, 5, 4, 3, 2, 1, 10, 9, 8];
 
+// Wall colours: Delhi's painted plaster, brick and stone, a little brighter
+// than life so the city reads well from above.
 const PALETTES = {
-  1: ['#e8d8b9', '#f0e2c8', '#e3c6a6', '#d9b99b', '#efd9d0', '#cfd8d0', '#e6cfa0', '#f2e8d8', '#d8a48f', '#c9b9a4', '#e9c9b6'],
-  2: ['#e8d2b0', '#d8c0a0', '#e9e2d0', '#c9b7a0', '#d9a080', '#e0c8b8', '#c8b8a8'],
-  3: ['#9fb7c9', '#8aa6b8', '#b8c6cf', '#c9c2b4', '#a6b3a0', '#d8d2c4', '#e2ddd2'],
-  4: ['#a7aaa8', '#9aa3ad', '#b8b2a5', '#8f9aa3', '#b0a898'],
-  5: ['#f3efe6', '#f0dcc0', '#e8c9a0', '#f2e6d0'],
-  6: ['#e6d3b3', '#d9c2a0', '#cdb79a', '#e8dcc6'],
-  7: ['#e4c9a2', '#d6b48a', '#e9d6b6'],
-  8: ['#b9a58a', '#a99a85'],
-  0: ['#e8d8b9', '#e3c6a6', '#d9c9b0', '#cfd8d0', '#e6cfa0', '#d8bfa8', '#c8c0b0', '#e1d3c2'],
+  1: ['#f0c9a0', '#f4dcb4', '#e7a98e', '#f2d1c9', '#bfdcd0', '#f3e2a6', '#e6b98c', '#d8e2ec', '#f0b8a8', '#e9d7bf', '#c9d9a8', '#f5e8d2'],
+  2: ['#f1d7b0', '#e5c09c', '#f2e7d2', '#d9b79a', '#e9a888', '#efd1c4', '#cfd8e2', '#e0cba8'],
+  3: ['#a9c6dc', '#8fb4cf', '#c3d4e0', '#d6cdbb', '#b4c7b0', '#e6dfcf', '#f0e9dc'],
+  4: ['#b4b7b5', '#a9b2bc', '#c5bfb2', '#9ea9b2', '#bdb4a3'],
+  5: ['#f7f3ea', '#f4ddb8', '#ecc690', '#f6e9d0'],
+  6: ['#eed8b4', '#e2c49c', '#d6bd9c', '#f0e2c8'],
+  7: ['#eecb9c', '#e2b47e', '#f2dcb6'],
+  8: ['#c4ad8c', '#b6a184'],
+  0: ['#efd2a8', '#e9b996', '#ded1b8', '#c9dccf', '#f0dc9e', '#e3c0a4', '#d2ccbc', '#ecd8c4', '#f2c6b6'],
 };
 
 /** Landmark placement: metres per model tile, metres per model px of height. */
 export const LANDMARK_SCALE = {
   'india-gate': [20, 1.0], 'rashtrapati-bhavan': [85, 1.5], 'north-block': [120, 1.6], 'south-block': [120, 1.6],
-  parliament: [100, 1.3], 'connaught-place': [140, 2], 'jantar-mantar': [90, 1.4], 'bangla-sahib': [95, 1.2],
+  parliament: [100, 1.3], 'connaught-place': [117, 2], 'jantar-mantar': [90, 1.4], 'bangla-sahib': [95, 1.2],
   'birla-mandir': [75, 1.45], 'new-delhi-station': [200, 1.25], 'red-fort': [180, 2.4], 'jama-masjid': [65, 1.15],
   rajghat: [60, 1], 'bharat-mandapam': [160, 3], 'purana-qila': [200, 2.2], 'humayun-tomb': [115, 1.15],
   'lodhi-tomb': [40, 1.25], 'jln-stadium': [120, 1.8], 'lotus-temple': [75, 1.55], akshardham: [100, 1.3],
@@ -210,9 +215,10 @@ export class City {
     const y0 = cy * span;
     const cells = this.cellsFor(x0, y0, x0 + span, y0 + span);
     if (!cells) return null;
-    const cv = makeCanvas(CHUNK, CHUNK);
+    const cv = makeCanvas(CHUNK / PIXEL, CHUNK / PIXEL);
     const ctx = cv.getContext('2d');
-    ctx.setTransform(level, 0, 0, level, -x0 * level, -y0 * level);
+    const k0 = level / PIXEL;
+    ctx.setTransform(k0, 0, 0, k0, -x0 * k0, -y0 * k0);
     this.paint(ctx, cells, x0, y0, x0 + span, y0 + span, level);
     const k = level + ':' + cx + ':' + cy;
     this.cache.set(k, cv);
@@ -243,6 +249,7 @@ export class City {
       for (const r of a.rings) ringPath(ctx, r);
       ctx.fillStyle = C(AREA_STYLE[a.cls] || LAND);
       ctx.fill('evenodd');
+      if (level >= 1 && (a.cls === 5 || a.cls === 6 || a.cls === 7 || a.cls === 13 || a.cls === 4)) speckle(ctx, a, level, ge0, ge1, gs0, gs1);
     }
 
     // 2. water lines and roads, casings first so junctions merge
@@ -261,6 +268,7 @@ export class City {
         ctx.strokeStyle = C(pass === 'case' ? casing : fill);
         ctx.lineWidth = Math.max(minW, pass === 'case' ? w + 3 : w);
         ctx.stroke();
+        if (pass === 'fill' && level >= 1 && l.cls <= 5 && !(l.flags & 1)) laneMarks(ctx, l);
         if (l.cls === 8 && pass === 'fill' && level >= 1) {
           ctx.setLineDash([1, 2]);
           ctx.strokeStyle = C('#6b5948');
@@ -296,6 +304,7 @@ export class City {
       ctx.lineWidth = w;
       ctx.stroke();
     }
+    if (level >= 2) for (const l of lines) if (l.cls === 6 && !(l.flags & 1)) parkedCars(ctx, l);
     if (getMode() !== 'day' && level >= 1 / 4) {
       ctx.fillStyle = L('#ffcf7a', night ? 0.5 : 0.28);
       for (const l of lines) {
@@ -402,6 +411,9 @@ export class City {
     const n = p.length / 2;
     const h = b.h;
     const col = pick(PALETTES[b.kind] || PALETTES[0], b.seed);
+    // Delhi roofs are mostly bare concrete, tinted a little by the walls
+    const roofCol = b.kind === 4 ? '#b9bec2' : mix(col, '#d6d1c6', 0.55);
+    const detail = level >= 1 && walls;
     if (walls) {
       const faces = [];
       for (let k = 0; k < n; k++) {
@@ -417,16 +429,12 @@ export class City {
         ne /= len;
         ns /= len;
         if (ne + ns <= 0) continue;
-        faces.push({ ae, as, be, bs, d: ae + as + be + bs, f: 0.72 + 0.24 * ((ns - ne + 1) / 2) });
+        faces.push({ ae, as, be, bs, d: ae + as + be + bs, f: 0.72 + 0.24 * ((ns - ne + 1) / 2), len: Math.hypot(de, ds) });
       }
       faces.sort((x, y) => x.d - y.d);
+      const shop = detail && h <= 22 && (b.kind === 3 || ((b.kind === 0 || b.kind === 1) && b.seed % 3 === 0));
       for (const f of faces) {
-        ctx.beginPath();
-        ctx.moveTo(f.ae - f.as, (f.ae + f.as) / 2);
-        ctx.lineTo(f.be - f.bs, (f.be + f.bs) / 2);
-        ctx.lineTo(f.be - f.bs, (f.be + f.bs) / 2 - h * ZK);
-        ctx.lineTo(f.ae - f.as, (f.ae + f.as) / 2 - h * ZK);
-        ctx.closePath();
+        quad(ctx, f, 0, h);
         ctx.fillStyle = C(col, f.f);
         ctx.fill();
         if (level >= 1 / 2) {
@@ -434,7 +442,21 @@ export class City {
           ctx.lineWidth = 0.4;
           ctx.stroke();
         }
-        if (level >= 1 && h >= 9) this.windows(ctx, f, h, b.seed, night, b.kind, col);
+        if (detail && f.len > 2.5) {
+          if (shop) shopFront(ctx, f, b.seed, night);
+          this.windows(ctx, f, h, b.seed, night, b.kind, shop);
+        }
+        if (detail) {
+          // pixel-art outline down the corners and along the foot of the wall
+          ctx.strokeStyle = C(col, f.f * 0.62);
+          ctx.lineWidth = 0.5;
+          ctx.beginPath();
+          ctx.moveTo(f.ae - f.as, (f.ae + f.as) / 2 - h * ZK);
+          ctx.lineTo(f.ae - f.as, (f.ae + f.as) / 2);
+          ctx.lineTo(f.be - f.bs, (f.be + f.bs) / 2);
+          ctx.lineTo(f.be - f.bs, (f.be + f.bs) / 2 - h * ZK);
+          ctx.stroke();
+        }
       }
     }
     // roof
@@ -446,53 +468,94 @@ export class City {
       else ctx.moveTo(x, y);
     }
     ctx.closePath();
-    ctx.fillStyle = C(col, walls ? 1.08 : 1);
+    ctx.fillStyle = C(walls ? roofCol : col, walls ? 1.06 : 1);
     ctx.fill();
-    if (level >= 1) {
-      ctx.strokeStyle = C(col, 0.82);
-      ctx.lineWidth = 0.6;
-      ctx.stroke();
+    if (!detail) return;
+    // parapet: a darker band just inside the roof edge, then the outline
+    ctx.save();
+    ctx.clip();
+    if (b.kind === 4) corrugate(ctx, b, h, roofCol);
+    ctx.strokeStyle = C(roofCol, 0.84);
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+    ctx.restore();
+    ctx.strokeStyle = C(col, 0.55);
+    ctx.lineWidth = 0.6;
+    ctx.stroke();
+    if (level >= 2 || b.area < 4000) this.roofTop(ctx, b, h, col, roofCol);
+  }
+
+  /** Stair room, water tank, AC units, solar panels and dishes on flat roofs. */
+  roofTop(ctx, b, h, col, roofCol) {
+    if (b.kind === 4 || b.kind === 8 || b.area < 35) return;
+    const r = (k) => hash2(b.seed, k, 13);
+    const inside = (e, s) => inRing(e, s, b.pts);
+    const v0e = b.pts[0];
+    const v0s = b.pts[1];
+    // a stair room ("mumty") towards one corner
+    if (b.area > 60 && b.kind !== 5 && r(1) < 0.8) {
+      const e = v0e + (b.ce - v0e) * 0.4;
+      const s = v0s + (b.cs - v0s) * 0.4;
+      if (inside(e, s)) block(ctx, e - 1.3, s - 1.3, 2.6, 2.6, h, 2.6, col, roofCol);
     }
-    // the black water tank on every Delhi roof
-    if (level >= 1 && (b.kind === 1 || b.kind === 0) && h < 24 && b.area > 40 && b.area < 900 && (b.seed & 3) !== 0) {
-      const [x, y] = iso(b.ce, b.cs, h);
-      ctx.fillStyle = C('#2b2d30');
-      ctx.beginPath();
-      ctx.ellipse(x, y - 2, 2.2, 1.1, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillRect(x - 2.2, y - 2, 4.4, 2);
-      ctx.beginPath();
-      ctx.ellipse(x, y, 2.2, 1.1, 0, 0, Math.PI);
-      ctx.fill();
+    // the black plastic water tank on nearly every Delhi roof
+    if ((b.kind <= 2 || b.kind === 7) && h < 40 && r(2) < 0.85) {
+      const e = b.ce + (r(3) - 0.5) * Math.sqrt(b.area) * 0.35;
+      const s = b.cs + (r(4) - 0.5) * Math.sqrt(b.area) * 0.35;
+      if (inside(e, s)) tank(ctx, e, s, h);
+    }
+    // window AC units along the roof
+    const nAc = b.area > 80 ? 1 + Math.floor(r(5) * 3) : 0;
+    for (let k = 0; k < nAc; k++) {
+      const e = b.ce + (r(10 + k) - 0.5) * Math.sqrt(b.area) * 0.6;
+      const s = b.cs + (r(20 + k) - 0.5) * Math.sqrt(b.area) * 0.6;
+      if (inside(e, s)) block(ctx, e, s, 1.1, 0.8, h, 0.7, '#d9dcdc', '#eef0f0');
+    }
+    // solar panels on big roofs: schools, offices, flats, temples
+    if (b.area > 350 && (b.kind === 2 || b.kind === 3 || b.kind === 6 || b.kind === 7 || r(6) < 0.25)) {
+      const rows = Math.min(4, Math.floor(Math.sqrt(b.area) / 9));
+      for (let a = 0; a < rows; a++) {
+        for (let c = 0; c < rows + 1; c++) {
+          const e = b.ce + (c - rows / 2) * 2.2;
+          const s = b.cs + (a - rows / 2) * 1.8;
+          if (inside(e, s) && inside(e + 1.8, s + 1.1)) panel(ctx, e, s, h);
+        }
+      }
+    }
+    // a dish on some houses
+    if (b.kind <= 1 && r(7) < 0.3) {
+      const e = b.ce + (r(8) - 0.5) * Math.sqrt(b.area) * 0.5;
+      const s = b.cs + (r(9) - 0.5) * Math.sqrt(b.area) * 0.5;
+      if (inside(e, s)) {
+        const [x, y] = iso(e, s, h + 1.2);
+        ctx.fillStyle = C('#f2f2ee');
+        ctx.beginPath();
+        ctx.ellipse(x, y, 0.9, 0.6, -0.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = C('#8d8f90');
+        ctx.lineWidth = 0.3;
+        ctx.stroke();
+      }
     }
   }
 
-  windows(ctx, f, h, seed, night, kind, col) {
-    const len = Math.hypot(f.be - f.ae, f.bs - f.as);
-    const floors = Math.max(1, Math.floor(h / 3.3));
-    const cols = Math.max(1, Math.floor(len / 4));
-    const glass = kind === 3 && h > 20;
-    if (!night) {
-      ctx.strokeStyle = glass ? C('#eef4f8', 0.9) : C(col, 0.62);
-      ctx.globalAlpha = glass ? 0.5 : 0.35;
-      ctx.lineWidth = 0.5;
-      ctx.beginPath();
-      for (let k = 1; k < floors; k++) {
-        const z = (k * h) / floors;
-        ctx.moveTo(f.ae - f.as, (f.ae + f.as) / 2 - z * ZK);
-        ctx.lineTo(f.be - f.bs, (f.be + f.bs) / 2 - z * ZK);
-      }
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-      return;
-    }
-    ctx.fillStyle = L('#ffd98a', 0.92);
-    for (let k = 0; k < floors; k++) {
+  windows(ctx, f, h, seed, night, kind, shop) {
+    const floors = Math.max(1, Math.floor(h / 3.2));
+    const glass = (kind === 3 || kind === 6) && h > 18;
+    const cols = Math.max(1, Math.floor(f.len / (glass ? 2.2 : 3.4)));
+    const first = shop ? 1 : 0;
+    const winH = glass ? 2.2 : 1.4;
+    const winW = glass ? 0.86 : 0.42;
+    const day = glass ? C('#9fc0d6', f.f + 0.12) : C('#4d5a66', f.f + 0.15);
+    for (let k = first; k < floors; k++) {
+      const z0 = k * 3.2 + (glass ? 0.5 : 1.1);
+      if (z0 + winH > h - 0.4) break;
       for (let c = 0; c < cols; c++) {
-        if (hash2(seed + k * 31, c + Math.round(f.ae), 5) > 0.42) continue;
-        const t0 = (c + 0.3) / cols;
-        const t1 = (c + 0.7) / cols;
-        const z0 = k * 3.3 + 1;
+        const lit = night && hash2(seed + k * 31, c + Math.round(f.ae), 5) < 0.42;
+        if (night && !lit) continue;
+        ctx.fillStyle = night ? L('#ffd98a', 0.92) : day;
+        const t0 = (c + 0.5 - winW / 2) / cols;
+        const t1 = (c + 0.5 + winW / 2) / cols;
         const ae = f.ae + (f.be - f.ae) * t0;
         const as = f.as + (f.bs - f.as) * t0;
         const be = f.ae + (f.be - f.ae) * t1;
@@ -500,12 +563,222 @@ export class City {
         ctx.beginPath();
         ctx.moveTo(ae - as, (ae + as) / 2 - z0 * ZK);
         ctx.lineTo(be - bs, (be + bs) / 2 - z0 * ZK);
-        ctx.lineTo(be - bs, (be + bs) / 2 - (z0 + 1.5) * ZK);
-        ctx.lineTo(ae - as, (ae + as) / 2 - (z0 + 1.5) * ZK);
+        ctx.lineTo(be - bs, (be + bs) / 2 - (z0 + winH) * ZK);
+        ctx.lineTo(ae - as, (ae + as) / 2 - (z0 + winH) * ZK);
         ctx.fill();
       }
     }
   }
+}
+
+const AWNINGS = ['#d9443a', '#2f7bd8', '#f2c318', '#3a9a4a', '#e07a2e', '#8b3fb0', '#e05aa0'];
+
+/** Ground-floor shop: rolling shutter and a striped awning above it. */
+function shopFront(ctx, f, seed, night) {
+  quad(ctx, f, 0.2, 2.5);
+  ctx.fillStyle = night ? L('#ffcf7a', 0.75) : C('#a6a6a2', f.f);
+  ctx.fill();
+  const awn = AWNINGS[(seed >>> 3) % AWNINGS.length];
+  quad(ctx, f, 2.5, 3.3);
+  ctx.fillStyle = C(awn, f.f + 0.05);
+  ctx.fill();
+  // stripes on the awning
+  const n = Math.max(2, Math.floor(f.len / 1.4));
+  ctx.fillStyle = C('#f6f1e6', f.f);
+  for (let k = 0; k < n; k += 2) {
+    const t0 = k / n;
+    const t1 = (k + 1) / n;
+    const ae = f.ae + (f.be - f.ae) * t0;
+    const as = f.as + (f.bs - f.as) * t0;
+    const be = f.ae + (f.be - f.ae) * t1;
+    const bs = f.as + (f.bs - f.as) * t1;
+    ctx.beginPath();
+    ctx.moveTo(ae - as, (ae + as) / 2 - 2.5 * ZK);
+    ctx.lineTo(be - bs, (be + bs) / 2 - 2.5 * ZK);
+    ctx.lineTo(be - bs, (be + bs) / 2 - 3.3 * ZK);
+    ctx.lineTo(ae - as, (ae + as) / 2 - 3.3 * ZK);
+    ctx.fill();
+  }
+}
+
+/** A wall face between heights z0 and z1, as the current path. */
+function quad(ctx, f, z0, z1) {
+  ctx.beginPath();
+  ctx.moveTo(f.ae - f.as, (f.ae + f.as) / 2 - z0 * ZK);
+  ctx.lineTo(f.be - f.bs, (f.be + f.bs) / 2 - z0 * ZK);
+  ctx.lineTo(f.be - f.bs, (f.be + f.bs) / 2 - z1 * ZK);
+  ctx.lineTo(f.ae - f.as, (f.ae + f.as) / 2 - z1 * ZK);
+  ctx.closePath();
+}
+
+/** Small axis-aligned box standing on a roof at height z. */
+function block(ctx, e, s, w, d, z, h, col, top) {
+  const P = (ee, ss, zz) => iso(ee, ss, zz);
+  const face = (pts, fill) => {
+    ctx.beginPath();
+    pts.forEach(([x, y], k) => (k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+  };
+  face([P(e, s + d, z), P(e + w, s + d, z), P(e + w, s + d, z + h), P(e, s + d, z + h)], C(col, 0.96));
+  face([P(e + w, s, z), P(e + w, s + d, z), P(e + w, s + d, z + h), P(e + w, s, z + h)], C(col, 0.74));
+  face([P(e, s, z + h), P(e + w, s, z + h), P(e + w, s + d, z + h), P(e, s + d, z + h)], C(top, 1.04));
+}
+
+function tank(ctx, e, s, z) {
+  const [x, y] = iso(e, s, z);
+  const rx = 1.5;
+  const ry = 0.75;
+  const hh = 1.8 * ZK;
+  ctx.fillStyle = C('#26282b');
+  ctx.beginPath();
+  ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI);
+  ctx.lineTo(x - rx, y - hh);
+  ctx.ellipse(x, y - hh, rx, ry, 0, Math.PI, 0, true);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = C('#3c3f43');
+  ctx.beginPath();
+  ctx.ellipse(x, y - hh, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function panel(ctx, e, s, z) {
+  const a = iso(e, s, z + 0.3);
+  const b = iso(e + 1.8, s, z + 0.9);
+  const c = iso(e + 1.8, s + 1.1, z + 0.9);
+  const d = iso(e, s + 1.1, z + 0.3);
+  ctx.beginPath();
+  ctx.moveTo(...a);
+  ctx.lineTo(...b);
+  ctx.lineTo(...c);
+  ctx.lineTo(...d);
+  ctx.closePath();
+  ctx.fillStyle = C('#2c4a7a');
+  ctx.fill();
+  ctx.strokeStyle = C('#9fb4d0');
+  ctx.lineWidth = 0.25;
+  ctx.stroke();
+}
+
+/** Corrugated metal stripes across a factory roof (path already clipped). */
+function corrugate(ctx, b, h, roofCol) {
+  const [e0, s0, e1, s1] = bbox(b.pts);
+  ctx.strokeStyle = C(roofCol, 0.88);
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  for (let e = Math.floor(e0); e < e1; e += 1.6) {
+    const a = iso(e, s0, h);
+    const c = iso(e, s1, h);
+    ctx.moveTo(...a);
+    ctx.lineTo(...c);
+  }
+  ctx.stroke();
+}
+
+function bbox(pts) {
+  let e0 = Infinity;
+  let s0 = Infinity;
+  let e1 = -Infinity;
+  let s1 = -Infinity;
+  for (let k = 0; k < pts.length; k += 2) {
+    e0 = Math.min(e0, pts[k]);
+    e1 = Math.max(e1, pts[k]);
+    s0 = Math.min(s0, pts[k + 1]);
+    s1 = Math.max(s1, pts[k + 1]);
+  }
+  return [e0, s0, e1, s1];
+}
+
+function mix(a, b, t) {
+  const pa = parseInt(a.slice(1), 16);
+  const pb = parseInt(b.slice(1), 16);
+  const ch = (sh) => Math.round(((pa >> sh) & 255) * (1 - t) + ((pb >> sh) & 255) * t);
+  return '#' + ((1 << 24) | (ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).slice(1);
+}
+
+/** Dashed centre line: yellow on the big roads, white on the smaller ones. */
+function laneMarks(ctx, l) {
+  linePath(ctx, l.pts);
+  ctx.setLineDash(l.cls <= 3 ? [7, 6] : [4, 7]);
+  ctx.strokeStyle = C(l.cls <= 3 ? '#f2c94c' : '#f4f1e8');
+  ctx.lineWidth = l.cls <= 2 ? 0.9 : 0.6;
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+const PARKED = ['#f4f4f2', '#c9cdd2', '#3d4247', '#b8322a', '#2f5d9e', '#d8d2c2', '#4f9a3a', '#f2c318'];
+
+/** Cars parked along both kerbs of residential streets. */
+function parkedCars(ctx, l) {
+  const p = l.pts;
+  for (let k = 0; k < p.length - 2; k += 2) {
+    const ae = p[k];
+    const as = p[k + 1];
+    const de = p[k + 2] - ae;
+    const ds = p[k + 3] - as;
+    const len = Math.hypot(de, ds);
+    if (len < 12) continue;
+    const ue = de / len;
+    const us = ds / len;
+    for (let t = 6; t < len - 6; t += 6.5) {
+      for (const side of [-1, 1]) {
+        const r = hash2(Math.round((ae + ue * t) * 3), Math.round((as + us * t) * 3) + side, 21);
+        if (r > 0.45) continue;
+        const ce = ae + ue * t - us * side * 2.6;
+        const cs = as + us * t + ue * side * 2.6;
+        const hl = 2.1;
+        const hw = 0.85;
+        const pts = [
+          [ce + ue * hl - us * hw, cs + us * hl + ue * hw], [ce + ue * hl + us * hw, cs + us * hl - ue * hw],
+          [ce - ue * hl + us * hw, cs - us * hl - ue * hw], [ce - ue * hl - us * hw, cs - us * hl + ue * hw],
+        ];
+        ctx.beginPath();
+        pts.forEach(([e, s], q) => {
+          const [x, y] = iso(e, s, 0.8);
+          if (q) ctx.lineTo(x, y);
+          else ctx.moveTo(x, y);
+        });
+        ctx.closePath();
+        ctx.fillStyle = C(PARKED[Math.floor(r * 100) % PARKED.length]);
+        ctx.fill();
+        ctx.strokeStyle = C('#2b2b2e', 0.9);
+        ctx.lineWidth = 0.3;
+        ctx.stroke();
+      }
+    }
+  }
+}
+
+/** Dithered speckles that give grass and fields a hand-drawn texture. */
+function speckle(ctx, a, level, e0, e1, s0, s1) {
+  const [be0, bs0, be1, bs1] = a.bbox;
+  const ea = Math.max(e0, be0);
+  const eb = Math.min(e1, be1);
+  const sa = Math.max(s0, bs0);
+  const sb = Math.min(s1, bs1);
+  if (ea > eb || sa > sb) return;
+  const step = level >= 2 ? 2.2 : 3.4;
+  const dot = PIXEL / level; // one art pixel
+  const base = AREA_STYLE[a.cls];
+  const dark = C(base, 0.86);
+  const light = C(base, 1.1);
+  ctx.save();
+  ctx.beginPath();
+  for (const r of a.rings) ringPath(ctx, r);
+  ctx.clip('evenodd');
+  for (let s = Math.floor(sa / step) * step; s < sb; s += step) {
+    for (let e = Math.floor(ea / step) * step; e < eb; e += step) {
+      const r = hash2(Math.round(e / step), Math.round(s / step), 31);
+      if (r > 0.5) continue;
+      const pe = e + hash2(Math.round(e), Math.round(s), 3) * step;
+      const ps = s + hash2(Math.round(s), Math.round(e), 4) * step;
+      ctx.fillStyle = r < 0.3 ? dark : light;
+      ctx.fillRect(pe - ps, (pe + ps) / 2, dot * 2, dot);
+    }
+  }
+  ctx.restore();
 }
 
 /**

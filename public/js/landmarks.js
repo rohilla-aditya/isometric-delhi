@@ -132,41 +132,16 @@ export const MODELS = {
   },
 
   'connaught-place': {
+    // Only Central Park and its flag: the colonnaded circles around it are
+    // OpenStreetMap's real buildings.
     h: 30,
     draw(ctx, lm) {
       const [ci, cj] = centre(lm);
-      fillPts(ctx, circlePts(ci, cj, 2.45, 40).map(([x, y]) => P(x, y)), C('#77777b'));
-      fillPts(ctx, circlePts(ci, cj, 0.9, 32).map(([x, y]) => P(x, y)), C('#8fc35d'));
-      fillPts(ctx, circlePts(ci, cj, 0.35, 20).map(([x, y]) => P(x, y)), C('#d9cfbd'));
-      const segs = [];
-      const ring = (r0, r1, n, h) => {
-        for (let k = 0; k < n; k++) {
-          const gap = 0.07;
-          const a0 = (k / n) * Math.PI * 2 + gap;
-          const a1 = ((k + 1) / n) * Math.PI * 2 - gap;
-          const pts = [];
-          for (let s = 0; s <= 3; s++) {
-            const a = a0 + ((a1 - a0) * s) / 3;
-            pts.push([ci + Math.cos(a) * r1, cj + Math.sin(a) * r1]);
-          }
-          for (let s = 3; s >= 0; s--) {
-            const a = a0 + ((a1 - a0) * s) / 3;
-            pts.push([ci + Math.cos(a) * r0, cj + Math.sin(a) * r0]);
-          }
-          const am = (a0 + a1) / 2;
-          const rm = (r0 + r1) / 2;
-          segs.push({ pts, h, d: Math.cos(am) * rm + Math.sin(am) * rm });
-        }
-      };
-      ring(1.05, 1.45, 12, 7);
-      ring(1.75, 2.25, 16, 8);
-      segs.sort((a, b) => a.d - b.d);
-      for (const s of segs) {
-        prism(ctx, s.pts, 0, 2.5, '#d8d2c4', { noTop: true });
-        prism(ctx, s.pts, 2.5, s.h - 2.5, '#f3efe6', { topCol: '#e0d9ca' });
-      }
-      for (let k = 0; k < 7; k++) {
-        const a = (k / 7) * Math.PI * 2;
+      fillPts(ctx, circlePts(ci, cj, 0.9, 32).map(([x, y]) => P(x, y)), C('#8fc65c'));
+      fillPts(ctx, circlePts(ci, cj, 0.35, 20).map(([x, y]) => P(x, y)), C('#ddd2bd'));
+      fillPts(ctx, circlePts(ci, cj, 0.12, 16).map(([x, y]) => P(x, y)), C('#4f9cc4'));
+      for (let k = 0; k < 9; k++) {
+        const a = (k / 9) * Math.PI * 2;
         tree(ctx, ci + Math.cos(a) * 0.65, cj + Math.sin(a) * 0.65, 2.2, '#4f8a3a');
       }
       const top = pole(ctx, ci, cj, 0, 30, '#d8d8d8', 0.7);

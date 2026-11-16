@@ -137,8 +137,10 @@ function frame(now, dt) {
         let c = city.get(level, cx, cy);
         if (!c && performance.now() < budgetEnd) c = city.render(level, cx, cy, makeCanvas);
         const r = deviceRect(x0, y0, span, s, tx, ty);
+        ctx.imageSmoothingEnabled = false; // crisp art pixels
         if (c) ctx.drawImage(c, r.x, r.y, r.w, r.h);
         else if (!drawStandIn(level, x0, y0, span, s, tx, ty, r)) {
+          ctx.imageSmoothingEnabled = true;
           ctx.setTransform(s, 0, 0, s, tx, ty);
           drawOverview(x0, y0, x0 + span, y0 + span);
           tint(x0, y0, x0 + span, y0 + span);
@@ -148,6 +150,7 @@ function frame(now, dt) {
     }
   }
 
+  ctx.imageSmoothingEnabled = true;
   ctx.setTransform(s, 0, 0, s, tx, ty);
   life.draw(ctx, view, opts);
   if (hovered || selected) outline(hovered || selected);
@@ -164,7 +167,9 @@ function frame(now, dt) {
 let curLevel = null;
 function pickLevel(want) {
   if (want < LEVELS[0] * 0.6) return (curLevel = null);
-  if (curLevel && curLevel >= want * 0.97 && curLevel <= want * 2.5) return curLevel;
+  // with PIXEL = 2 a level up to 2x the screen scale still shows art pixels
+  // at least one device pixel wide, so hard-edged scaling never drops pixels
+  if (curLevel && curLevel >= want * 0.97 && curLevel <= want * 2) return curLevel;
   curLevel = LEVELS.find((l) => l >= want * 0.97) || LEVELS[LEVELS.length - 1];
   return curLevel;
 }
