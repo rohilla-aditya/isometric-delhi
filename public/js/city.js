@@ -10,7 +10,7 @@ import { MODELS } from './landmarks.js';
 import { hash2 } from './geo.js';
 
 export const CHUNK = 512;
-export const LEVELS = [1 / 8, 1 / 4, 1 / 2, 1, 2, 4];
+export const LEVELS = [1 / 8, 1 / 4, 1 / 2, 1, 2, 4, 8];
 export const MAX_H = 320; // tallest thing, in metres, for culling
 
 const AREA_STYLE = {
@@ -165,7 +165,7 @@ export class City {
     this.landmarks = landmarks;
     this.metroColours = metroColours || [];
     this.cache = new Map();
-    this.max = 80;
+    this.max = 140;
     this.opts = { metro: true };
   }
 
@@ -225,7 +225,9 @@ export class City {
     ctx.fillStyle = C(LAND);
     ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
     // ground region of this chunk, for culling flat things
-    const g = [unIso(x0, y0), unIso(x1, y0), unIso(x0, y1), unIso(x1, y1)];
+    // ground under this chunk, reaching a little below it for trees whose
+    // crowns rise into it
+    const g = [unIso(x0, y0), unIso(x1, y0), unIso(x0, y1 + 60), unIso(x1, y1 + 60)];
     const ge0 = Math.min(...g.map((p) => p.e));
     const ge1 = Math.max(...g.map((p) => p.e));
     const gs0 = Math.min(...g.map((p) => p.s));
@@ -335,7 +337,7 @@ export class City {
         if (!skip) things.push({ d: b.ce + b.cs, b });
       }
     }
-    if (level >= 1 / 2) this.addTrees(things, areas, ge0, ge1, gs0, gs1 + MAX_H, level);
+    if (level >= 1 / 2) this.addTrees(things, areas, ge0, ge1, gs0, gs1, level);
     if (this.opts.metro) {
       for (const c of cells) {
         for (const l of c.lines) {
@@ -356,6 +358,7 @@ export class City {
     for (const lm of lms) things.push({ d: lm.e + lm.s + lm.hw + lm.hd, lm });
     things.sort((a, b) => a.d - b.d);
 
+    if (level >= 1 / 4 && getMode() !== 'night') shadows(ctx, things);
     const walls = level >= 1 / 4;
     for (const t of things) {
       if (t.b) this.building(ctx, t.b, walls, level, night);
@@ -503,6 +506,61 @@ export class City {
       }
     }
   }
+}
+
+/**
+ * Sun shadows for every building in one path. Each building adds its
+ * footprint, the footprint shifted away from the sun and the band between
+ * them, all wound the same way, so a single non-zero fill gives an even
+ * shadow where they overlap.
+ */
+function shadows(ctx, things) {
+  const dusk = getMode() === 'dusk';
+  const k = dusk ? 2.2 : 0.9; // shadow length per metre of height
+  const oe = 0.55 * k;
+  const os = -0.35 * k;
+  ctx.beginPath();
+  for (const t of things) {
+    const b = t.b;
+    if (!b) continue;
+    const p = b.pts;
+    const n = p.length / 2;
+    const de = b.h * oe;
+    const ds = b.h * os;
+    const ring = (ee, ss) => {
+      const xy = [];
+      for (let q = 0; q < n; q++) xy.push(p[q * 2] + ee - (p[q * 2 + 1] + ss), (p[q * 2] + ee + p[q * 2 + 1] + ss) / 2);
+      return xy;
+    };
+    addPoly(ctx, ring(0, 0));
+    addPoly(ctx, ring(de, ds));
+    for (let q = 0; q < n; q++) {
+      const ae = p[q * 2];
+      const as = p[q * 2 + 1];
+      const be = p[((q + 1) % n) * 2];
+      const bs = p[((q + 1) % n) * 2 + 1];
+      addPoly(ctx, [ae - as, (ae + as) / 2, be - bs, (be + bs) / 2, be + de - (bs + ds), (be + de + bs + ds) / 2, ae + de - (as + ds), (ae + de + as + ds) / 2]);
+    }
+  }
+  ctx.fillStyle = dusk ? 'rgba(70,40,70,0.22)' : 'rgba(40,45,75,0.15)';
+  ctx.fill('nonzero');
+}
+
+function addPoly(ctx, xy) {
+  let a = 0;
+  const n = xy.length / 2;
+  for (let q = 0; q < n; q++) {
+    const r = (q + 1) % n;
+    a += xy[q * 2] * xy[r * 2 + 1] - xy[r * 2] * xy[q * 2 + 1];
+  }
+  if (Math.abs(a) < 1e-6) return;
+  const fwd = a > 0;
+  for (let q = 0; q < n; q++) {
+    const i = fwd ? q : n - 1 - q;
+    if (q) ctx.lineTo(xy[i * 2], xy[i * 2 + 1]);
+    else ctx.moveTo(xy[i * 2], xy[i * 2 + 1]);
+  }
+  ctx.closePath();
 }
 
 function tree(ctx, t, level) {
