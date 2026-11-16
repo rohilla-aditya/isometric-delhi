@@ -5,8 +5,8 @@ name: data
 on:
   push:
     paths:
-      - tools/**
-      - .github/workflows/data.yml
+      - tools/build_data.py
+      - tools/requirements.txt
   workflow_dispatch:
 
 concurrency:
