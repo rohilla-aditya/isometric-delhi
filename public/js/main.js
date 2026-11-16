@@ -36,6 +36,7 @@ let glide = null; // momentum after a drag, world px per second
 let zoomGoal = null; // eased wheel zoom: { z, sx, sy }
 let lastMove = 0;
 let viewHash = '';
+let photoCredits = {}; // landmark id -> Commons author, licence and source
 let selected = null;
 let hovered = null;
 let dirty = true;
@@ -371,6 +372,7 @@ function select(lm, fly = true) {
     renderList();
     return;
   }
+  showPhoto(lm);
   $('card-name').textContent = lm.name;
   $('card-hi').textContent = lm.hi;
   $('card-era').textContent = lm.era;
@@ -379,6 +381,33 @@ function select(lm, fly = true) {
   setHash(lm.id);
   if (fly) focusLandmark(lm);
   renderList();
+}
+
+/** Real photo of the landmark from Wikimedia Commons, credited as its licence asks. */
+function showPhoto(lm) {
+  const fig = $('card-photo');
+  const c = photoCredits[lm.id];
+  if (!c) {
+    fig.hidden = true;
+    return;
+  }
+  const img = $('card-img');
+  img.src = `photos/${lm.id}.jpg`;
+  img.alt = `Photo of ${lm.name}`;
+  const cap = $('card-credit');
+  cap.replaceChildren();
+  const link = (text, href) => {
+    const a = document.createElement('a');
+    a.href = href;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.textContent = text;
+    return a;
+  };
+  cap.append('Photo: ', link(c.author, c.source), ', ');
+  cap.append(c.licenseUrl ? link(c.license, c.licenseUrl) : c.license);
+  cap.append(', via Wikimedia Commons');
+  fig.hidden = false;
 }
 
 function setHash(id) {
@@ -679,6 +708,11 @@ async function boot() {
   minimapImg = loadImage(`${DATA}/minimap.webp`);
 
   landmarks = placeLandmarks(LANDMARKS);
+  try {
+    photoCredits = await (await fetch('photos/credits.json')).json();
+  } catch {
+    photoCredits = {};
+  }
   const store = new CellStore(meta, DATA, () => {
     dirty = true;
   });

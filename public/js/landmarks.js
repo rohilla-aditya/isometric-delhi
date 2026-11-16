@@ -188,15 +188,24 @@ export const MODELS = {
   },
 
   'birla-mandir': {
-    h: 34,
+    h: 46,
     draw(ctx, lm) {
       const [ci, cj] = centre(lm);
       rect(ctx, lm.i0, lm.j0, 2, 2, C('#e3d8c3'));
-      box(ctx, ci - 0.75, cj - 0.75, 1.5, 1.5, 0, 5, '#efe2c8', { topCol: '#e6d4b4' });
-      shikhara(ctx, ci + 0.5, cj - 0.5, 0.22, 5, 13, '#d0603e');
-      shikhara(ctx, ci - 0.5, cj + 0.5, 0.22, 5, 13, '#d0603e');
-      box(ctx, ci + 0.15, cj - 0.25, 0.45, 0.5, 5, 5, '#efe2c8');
-      shikhara(ctx, ci, cj, 0.36, 5, 26, '#cf5a3a', { flag: ['#ff8c1a'] });
+      box(ctx, ci - 0.75, cj - 0.75, 1.5, 1.5, 0, 5, '#f0d690', { topCol: '#efe0b8' });
+      ctx.fillStyle = C('#9c2f2a', 1);
+      for (let k = 0; k < 7; k++) {
+        const [x, y] = P(ci + 0.75, cj - 0.6 + k * 0.2, 1.5);
+        ctx.fillRect(x - 0.6, y - 2.4 * VS, 1.2, 2.4 * VS); // arched windows on the front
+      }
+      const rib = '#c9654f';
+      shikhara(ctx, ci - 0.5, cj - 0.5, 0.09, 5, 16, '#a8322c', { cap: '#f4ead2', rib });
+      shikhara(ctx, ci + 0.5, cj - 0.5, 0.1, 5, 19, '#a8322c', { cap: '#f4ead2', rib });
+      shikhara(ctx, ci - 0.5, cj + 0.5, 0.1, 5, 19, '#a8322c', { cap: '#f4ead2', rib });
+      box(ctx, ci + 0.15, cj - 0.25, 0.45, 0.5, 5, 5, '#f0d690');
+      box(ctx, ci - 0.3, cj - 0.3, 0.6, 0.6, 5, 4, '#f0d690', { topCol: '#efe0b8' });
+      shikhara(ctx, ci, cj, 0.16, 9, 32, '#a8322c', { flag: ['#ff8c1a'], cap: '#f4ead2', rib });
+      shikhara(ctx, ci + 0.5, cj + 0.5, 0.09, 5, 16, '#a8322c', { cap: '#f4ead2', rib });
     },
   },
 
@@ -222,10 +231,13 @@ export const MODELS = {
       walls(ctx, i0, j0, w, d, 0.22, 9, RED, false);
       // Lahori Gate, with the flag
       const gj = j0 + d / 2;
-      box(ctx, i0 - 0.08, gj - 0.38, 0.42, 0.76, 0, 15, RED);
+      cyl(ctx, i0 + 0.12, gj - 0.42, 0.14, 0, 17, RED, { n: 8 });
+      chhatri(ctx, i0 + 0.12, gj - 0.42, 17, 0.1);
+      box(ctx, i0 - 0.08, gj - 0.34, 0.42, 0.68, 0, 15, RED);
       arch(ctx, 'i', i0 + 0.34, gj, 0.14, 0, 8, C('#4a2016', 1));
-      chhatri(ctx, i0 + 0.12, gj - 0.25, 15, 0.09);
-      chhatri(ctx, i0 + 0.12, gj + 0.25, 15, 0.09);
+      for (let k = -2; k <= 2; k++) chhatri(ctx, i0 + 0.14, gj + k * 0.11, 15, 0.045);
+      cyl(ctx, i0 + 0.12, gj + 0.42, 0.14, 0, 17, RED, { n: 8 });
+      chhatri(ctx, i0 + 0.12, gj + 0.42, 17, 0.1);
       const top = pole(ctx, i0 + 0.15, gj, 15, 10, '#d8d8d8');
       flag(ctx, top[0], top[1], TRICOLOUR, 5);
       // halls inside
@@ -298,9 +310,31 @@ export const MODELS = {
     draw(ctx, lm) {
       const [ci, cj] = centre(lm);
       rect(ctx, lm.i0, lm.j0, 2, 2, C('#d8d2c4'));
-      const e = circlePts(ci, cj, 0.85, 28, 0.68);
-      prism(ctx, e, 0, 4, '#8fb0c4');
-      prism(ctx, e, 4, 6, '#efe8dc', { topScale: 0.78, topCol: '#f4efe6' });
+      const e = circlePts(ci, cj, 0.85, 36, 0.68);
+      const at = (k) => e.map(([x, y]) => [ci + (x - ci) * k, cj + (y - cj) * k]);
+      prism(ctx, e, 0, 2, '#d8c7a4', { topCol: '#e6d8bc' });
+      prism(ctx, at(0.93), 2, 2, '#4f6475');
+      // the tall orange crown, ribbed with horizontal bands
+      prism(ctx, at(1.04), 4, 8, '#d0582a', { topScale: 0.92, topCol: '#c9a98a' });
+      ctx.strokeStyle = C('#a63f1a', 1);
+      ctx.lineWidth = 0.35;
+      for (const z of [5.6, 7.2, 8.8, 10.4]) {
+        // only the front half of each ring faces the viewer
+        ctx.beginPath();
+        let open = false;
+        at(1.04 - (z - 4) * 0.01).forEach(([x, y], k) => {
+          const a = (k / 36) * Math.PI * 2;
+          if (Math.cos(a) + Math.sin(a) < 0) {
+            open = false;
+            return;
+          }
+          const [px, py] = P(x, y, z);
+          if (open) ctx.lineTo(px, py);
+          else ctx.moveTo(px, py);
+          open = true;
+        });
+        ctx.stroke();
+      }
     },
   },
 
@@ -615,6 +649,9 @@ export const MODELS = {
 
 function secretariat(ctx, lm) {
   const { i0, j0 } = lm;
+  // the red sandstone Dominion Column, topped by a bronze ship
+  cyl(ctx, i0 + 1.6, j0 + 0.08, 0.05, 0, 16, '#b4492f', { n: 8 });
+  dome(ctx, i0 + 1.6, j0 + 0.08, 0.07, 16, 2, '#b08d3a', { finial: 1.5, finialCol: '#b08d3a' });
   rect(ctx, i0, j0, 2, 1, C('#e2d6bf'));
   box(ctx, i0 + 0.1, j0 + 0.2, 1.8, 0.6, 0, 4, RED);
   box(ctx, i0 + 0.12, j0 + 0.22, 1.76, 0.56, 4, 7, CREAM);
