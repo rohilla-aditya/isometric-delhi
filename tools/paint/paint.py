@@ -110,7 +110,7 @@ def landmarks(src, dst):
         # Big sites (Red Fort is 1.4 km across) get few sprite pixels per metre
         # and turn blocky when zoomed in, so enlarge and paint in more detail.
         b = boxes[lid]
-        k = min(DETAIL_PX_PER_M, DETAIL_MAX_PX / max(out.size)) * (b["x1"] - b["x0"]) / out.width
+        k = min(DETAIL_PX_PER_M * (b["x1"] - b["x0"]) / out.width, DETAIL_MAX_PX / max(out.size))
         if k > 1.25:
             out = refine(pipe, out.resize((round(out.width * k), round(out.height * k)), Image.LANCZOS), prompt)
         out = pixelate(out)
