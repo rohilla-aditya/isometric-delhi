@@ -54,7 +54,7 @@ LANDMARK = {
     "igi-airport": "modern airport terminal with glass facade, control tower and parked white airplanes",
 }
 
-STRENGTH = {"landmarks": 0.68, "tiles": 0.45}
+STRENGTH = {"landmarks": 0.68, "tiles": 0.38}
 # Landmarks whose defining feature (a dome, a coloured crown) gets lost at the
 # usual strength are painted more gently.
 GENTLE = {"humayun-tomb": 0.36, "bharat-mandapam": 0.48, "lodhi-tomb": 0.5}
@@ -112,20 +112,42 @@ def landmarks(src, dst):
         print(lid, f"{time.time() - t:.0f}s", flush=True)
 
 
-def tiles(src, dst, limit_minutes):
+def harmonise(out, src, amount=0.55):
+    """Pull the painted tile's colour balance partway toward its own render.
+
+    Renders are continuous across tile edges, so matching each tile's
+    per-channel mean and spread to its render makes neighbours agree in tone
+    and hides the seams, while keeping most of the painted palette.
+    """
+    import numpy as np
+
+    o = np.asarray(out, dtype=np.float32)
+    r = np.asarray(src.resize(out.size), dtype=np.float32)
+    om, osd = o.mean((0, 1)), o.std((0, 1)) + 1e-3
+    rm, rsd = r.mean((0, 1)), r.std((0, 1)) + 1e-3
+    tm = om + (rm - om) * amount
+    tsd = osd + (rsd - osd) * amount
+    o = (o - om) / osd * tsd + tm
+    return Image.fromarray(np.clip(o, 0, 255).astype(np.uint8))
+
+
+def tiles(src, dst, limit_minutes, order=None):
     pipe = load()
     os.makedirs(dst, exist_ok=True)
     stop = time.time() + limit_minutes * 60
     done = 0
-    for name in sorted(os.listdir(src)):
-        if not name.endswith(".png") or time.time() > stop:
+    # paint in priority order (nearest Connaught Place first), not by file name,
+    # so a runner that hits its time limit leaves only the outskirts undone
+    names = [f"{tx}_{ty}.png" for tx, ty in json.load(open(order))] if order else sorted(os.listdir(src))
+    for name in names:
+        if not name.endswith(".png") or time.time() > stop or not os.path.exists(os.path.join(src, name)):
             continue
         out_path = os.path.join(dst, name[:-4] + ".webp")
         if os.path.exists(out_path):
             continue
         im = Image.open(os.path.join(src, name)).convert("RGB")
         tx, ty = (int(v) for v in name[:-4].split("_"))
-        out = pixelate(repaint(pipe, im, CITY + STYLE, STRENGTH["tiles"], tx * 7919 + ty))
+        out = pixelate(harmonise(repaint(pipe, im, CITY + STYLE, STRENGTH["tiles"], tx * 7919 + ty), im))
         # crop the overlap margin; neighbours meet in the middle of it
         m = round(out.width * 64 / (1024 + 128))
         out.crop((m, m, out.width - m, out.height - m)).resize((512, 512), Image.NEAREST).save(out_path, quality=82, method=6)
@@ -139,4 +161,5 @@ if __name__ == "__main__":
         landmarks(sys.argv[2], sys.argv[3])
     else:
         lim = float(sys.argv[sys.argv.index("--limit-minutes") + 1]) if "--limit-minutes" in sys.argv else 1e9
-        tiles(sys.argv[2], sys.argv[3], lim)
+        order = sys.argv[sys.argv.index("--order") + 1] if "--order" in sys.argv else None
+        tiles(sys.argv[2], sys.argv[3], lim, order)

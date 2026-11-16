@@ -12,6 +12,10 @@ on:
       per_shard:
         description: Most tiles each of the 16 painters takes this run
         default: "450"
+      repaint:
+        description: Repaint every tile, not just the missing ones
+        type: boolean
+        default: false
 
 concurrency:
   group: paint
@@ -39,7 +43,7 @@ jobs:
 
       - name: Which tiles are already painted
         run: |
-          if git ls-remote --exit-code origin refs/heads/painted >/dev/null; then
+          if [ "${{ inputs.repaint }}" != "true" ] && git ls-remote --exit-code origin refs/heads/painted >/dev/null; then
             git fetch -q --depth=1 origin painted
             git ls-tree --name-only origin/painted tiles/ | sed -e 's#^tiles/##' -e 's#\.webp$##' > done.txt
           else
@@ -82,7 +86,7 @@ jobs:
 
       - name: Paint the tiles
         if: steps.plan.outputs.count != '0'
-        run: python tools/paint/paint.py tiles renders out --limit-minutes 290
+        run: python tools/paint/paint.py tiles renders out --order tiles.json --limit-minutes 290
 
       - uses: actions/upload-artifact@v4
         if: steps.plan.outputs.count != '0'
