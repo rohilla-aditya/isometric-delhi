@@ -45,7 +45,9 @@ jobs:
         run: |
           if [ "${{ inputs.repaint }}" != "true" ] && git ls-remote --exit-code origin refs/heads/painted >/dev/null; then
             git fetch -q --depth=1 origin painted
-            git ls-tree --name-only origin/painted tiles/ | sed -e 's#^tiles/##' -e 's#\.webp$##' > done.txt
+            mkdir -p "$RUNNER_TEMP/painted" && git archive origin/painted tiles | tar -x -C "$RUNNER_TEMP/painted"
+            # tiles from before the overlap margin (512 px wide) count as not done
+            python3 tools/paint/done.py "$RUNNER_TEMP/painted/tiles" 576 > done.txt
           else
             : > done.txt
           fi
