@@ -62,6 +62,41 @@ The pipeline writes:
 - `overview/*.webp` and `minimap.webp`: the whole region pre-rendered, used
   when zoomed far out.
 
+## AI-painted landmarks and city
+
+On top of the drawn map, a free, open image model repaints the city as
+detailed pixel art:
+
+- **Landmarks**: `public/sprites/` holds a painted sprite for each landmark,
+  drawn in place of its geometric model.
+- **The city**: tiles of 1024 × 1024 world px, painted in the background by
+  the `paint` workflow and kept on the `painted` branch (so `main` stays
+  light). The `pages` workflow publishes them under `painted/`, and the map
+  shows them from mid zoom down to street level wherever a tile exists; the
+  **Painted** button switches them off.
+
+The painter (`tools/paint/`) renders clean views of the map in a headless
+browser (`render.cjs`), then `paint.py` repaints them image-to-image with
+[DreamShaper 8](https://huggingface.co/Lykon/dreamshaper-8) (a Stable Diffusion
+1.5 model, CreativeML OpenRAIL-M) and the
+[LCM-LoRA](https://huggingface.co/latent-consistency/lcm-lora-sdv1-5) speed-up
+(OpenRAIL++). It runs on CPU: about 30 s per tile. The render fixes the layout
+and the model adds texture, so strengths stay moderate (0.45 for the city,
+0.68 for landmarks, whose sprites are then cut to the model's own outline).
+Results go to a limited palette at half resolution for a crisp finish.
+
+The `paint` workflow splits the ~4,400 tiles of the NCR across 16 free GitHub
+runners, nearest to Connaught Place first, and runs daily until every tile is
+painted. To repaint, delete tiles from the `painted` branch and run it again.
+
+```bash
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install -r tools/paint/requirements.txt
+npm start &                                    # the map must be running
+node tools/paint/render.cjs http://localhost:8080/ landmarks renders/
+python tools/paint/paint.py landmarks renders/ public/sprites/
+```
+
 ## Landmark photos
 
 `public/photos/` holds one photo per landmark from

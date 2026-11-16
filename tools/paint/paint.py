@@ -54,7 +54,7 @@ LANDMARK = {
     "igi-airport": "modern airport terminal with glass facade, control tower and parked white airplanes",
 }
 
-STRENGTH = {"landmarks": 0.55, "tiles": 0.45}
+STRENGTH = {"landmarks": 0.68, "tiles": 0.45}
 
 
 def load():
@@ -86,6 +86,9 @@ def pixelate(im, colors=72):
 def landmarks(src, dst):
     pipe = load()
     os.makedirs(dst, exist_ok=True)
+    # where each sprite sits in the world, written by render.cjs
+    with open(os.path.join(src, "landmarks.json")) as f, open(os.path.join(dst, "landmarks.json"), "w") as g:
+        g.write(f.read())
     for name in sorted(os.listdir(src)):
         if not name.endswith(".png"):
             continue
