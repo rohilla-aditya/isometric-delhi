@@ -148,9 +148,8 @@ def tiles(src, dst, limit_minutes, order=None):
         im = Image.open(os.path.join(src, name)).convert("RGB")
         tx, ty = (int(v) for v in name[:-4].split("_"))
         out = pixelate(harmonise(repaint(pipe, im, CITY + STYLE, STRENGTH["tiles"], tx * 7919 + ty), im))
-        # crop the overlap margin; neighbours meet in the middle of it
-        m = round(out.width * 64 / (1024 + 128))
-        out.crop((m, m, out.width - m, out.height - m)).resize((512, 512), Image.NEAREST).save(out_path, quality=82, method=6)
+        # keep the overlap margin: the viewer crossfades neighbours across it
+        out.save(out_path, quality=82, method=6)
         done += 1
     print("painted", done, "tiles", flush=True)
 

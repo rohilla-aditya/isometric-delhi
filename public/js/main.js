@@ -228,10 +228,13 @@ function drawStandIn(level, x0, y0, span, s, tx, ty, r) {
 function drawPainted(vx0, vy0, vx1, vy1, s, tx, ty) {
   if (!painted || s < 0.16 || s > 1.4) return;
   const span = painted.tile;
+  const M = painted.margin;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.imageSmoothingEnabled = s < 0.5; // shrink smoothly, enlarge as crisp pixels
-  for (let cy = Math.floor(vy0 / span); cy <= Math.floor(vy1 / span); cy++) {
-    for (let cx = Math.floor(vx0 / span); cx <= Math.floor(vx1 / span); cx++) {
+  // row by row, left to right: each tile fades in over the right and bottom
+  // margins of the tiles already drawn, so neighbours crossfade, not butt-join
+  for (let cy = Math.floor((vy0 - M) / span); cy <= Math.floor((vy1 + M) / span); cy++) {
+    for (let cx = Math.floor((vx0 - M) / span); cx <= Math.floor((vx1 + M) / span); cx++) {
       const key = cx + '_' + cy;
       if (!painted.have.has(key)) continue;
       let img = painted.images.get(key);
@@ -243,17 +246,50 @@ function drawPainted(vx0, vy0, vx1, vy1, s, tx, ty) {
         if (painted.images.size > 260) painted.images.delete(painted.images.keys().next().value);
       }
       if (!img.complete || !img.naturalWidth) continue;
-      const r = deviceRect(cx * span, cy * span, span, s, tx, ty);
-      ctx.drawImage(img, r.x, r.y, r.w, r.h);
-      if (TINT[mode]) {
-        ctx.save();
-        ctx.globalCompositeOperation = 'multiply';
-        ctx.fillStyle = TINT[mode];
-        ctx.fillRect(r.x, r.y, r.w, r.h);
-        ctx.restore();
-      }
+      // tiles painted before the overlap was kept are exactly `size` px wide
+      const m = img.naturalWidth > painted.size ? M : 0;
+      const r = deviceRect(cx * span - m, cy * span - m, span + 2 * m, s, tx, ty);
+      ctx.drawImage(paintedTile(img, key, m), r.x, r.y, r.w, r.h);
     }
   }
+}
+
+/** A painted tile ready to draw: tinted for the time of day, edges faded. */
+function paintedTile(img, key, m) {
+  const [kx, ky] = key.split('_').map(Number);
+  const want = mode + (m && painted.have.has(`${kx - 1}_${ky}`) ? 'L' : '') +
+    (m && painted.have.has(`${kx}_${ky - 1}`) ? 'T' : '');
+  if (img.ready && img.ready.want === want) return img.ready;
+  if (want === mode && !TINT[mode]) return img;
+  const w = img.naturalWidth, h = img.naturalHeight;
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  g.drawImage(img, 0, 0);
+  if (TINT[mode]) {
+    g.globalCompositeOperation = 'multiply';
+    g.fillStyle = TINT[mode];
+    g.fillRect(0, 0, w, h);
+  }
+  if (m) {
+    // fade in across the whole overlap (twice the margin) on the left and top
+    // edges, where the previous tiles' margins lie underneath
+    const fade = (w * 2 * m) / (painted.tile + 2 * m);
+    g.globalCompositeOperation = 'destination-in';
+    if (want.includes('L')) {
+      const gr = g.createLinearGradient(0, 0, fade, 0);
+      gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, '#000');
+      g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    }
+    if (want.includes('T')) {
+      const gr = g.createLinearGradient(0, 0, 0, fade);
+      gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, '#000');
+      g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    }
+  }
+  c.want = want;
+  img.ready = c;
+  return c;
 }
 
 function tint(x0, y0, x1, y1) {
@@ -749,7 +785,7 @@ async function boot() {
   loadSprites('sprites', () => city?.clear());
   try {
     const idx = await (await fetch('painted/index.json')).json();
-    painted = { tile: idx.tile, size: idx.size, have: new Set(idx.tiles), images: new Map() };
+    painted = { tile: idx.tile, size: idx.size, margin: idx.margin || 0, have: new Set(idx.tiles), images: new Map() };
     if (!painted.have.size) painted = null;
   } catch {
     painted = null;
