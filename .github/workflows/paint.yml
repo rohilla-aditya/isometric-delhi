@@ -121,7 +121,7 @@ jobs:
             git checkout -q --orphan painted && git rm -rq --cached . && git clean -fdq -e new
           fi
           mkdir -p tiles && cp new/*.webp tiles/ && rm -rf new
-          python3 -c "import json,os; t=sorted(f[:-5] for f in os.listdir('tiles') if f.endswith('.webp')); json.dump({'tile':1024,'size':512,'tiles':t}, open('index.json','w'))"
+          python3 -c "import json,os; t=sorted(f[:-5] for f in os.listdir('tiles') if f.endswith('.webp')); json.dump({'tile':1024,'size':512,'margin':64,'tiles':t}, open('index.json','w'))"
           git add tiles index.json
           git commit -q -m "Paint $(ls tiles | wc -l) city tiles"
           git push -q origin painted
