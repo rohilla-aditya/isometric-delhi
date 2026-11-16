@@ -9,8 +9,13 @@ landmarks at their real size, from the Qutub Minar to the Signature Bridge.
 - **Drag** to pan, **scroll / pinch** to zoom from the whole region down to
   single houses, **click a landmark** for its story in English and Hindi.
   Arrow keys and `+` / `-` work too.
-- **Day / Dusk / Night**: at night, windows, street lights and floodlit
-  monuments come on.
+- **Search** any landmark or neighbourhood, and **share the view**: the
+  address bar follows the camera (`#@lat,lon,zoomz`), so a copied link opens
+  on the same spot.
+- **Day / Dusk / Night**: buildings cast sun shadows (long at dusk); at night,
+  windows, street lights and floodlit monuments come on.
+- Drags glide to a stop and the wheel zooms smoothly; **Panels** (or `H`)
+  hides everything but the controls for clean screenshots.
 - Traffic (cars, autos, buses) keeps left on the main roads, trains run on
   the elevated metro in each line's colour, planes take off and land at IGI,
   kites fly over the colonies and black kites circle Jama Masjid.

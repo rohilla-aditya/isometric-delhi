@@ -1,4 +1,4 @@
-import { iso, unIso, llToEs, setMeta, worldBounds, ZK } from './proj.js';
+import { iso, unIso, llToEs, esToLL, setMeta, worldBounds, ZK } from './proj.js';
 import { LANDMARKS, DISTRICT_LABELS } from './data.js';
 import { CellStore } from './cells.js';
 import { City, CHUNK, LEVELS, placeLandmarks } from './city.js';
@@ -32,6 +32,10 @@ let W = 0;
 let H = 0;
 const cam = { x: 0, y: 0, zoom: 1 };
 let flight = null;
+let glide = null; // momentum after a drag, world px per second
+let zoomGoal = null; // eased wheel zoom: { z, sx, sy }
+let lastMove = 0;
+let viewHash = '';
 let selected = null;
 let hovered = null;
 let dirty = true;
@@ -83,6 +87,23 @@ function drawOverview(x0, y0, x1, y1) {
 
 function frame(now, dt) {
   if (flight) stepFlight(now);
+  if (glide && !flight) {
+    cam.x += glide.vx * dt;
+    cam.y += glide.vy * dt;
+    const decay = Math.exp(-dt * 4.5);
+    glide.vx *= decay;
+    glide.vy *= decay;
+    clampCam();
+    lastMove = now;
+    if (Math.hypot(glide.vx, glide.vy) * cam.zoom < 8) glide = null;
+  }
+  if (zoomGoal && !flight) {
+    zoomAt(zoomGoal.sx, zoomGoal.sy, cam.zoom * Math.pow(zoomGoal.z / cam.zoom, Math.min(1, dt * 14)));
+    lastMove = now;
+    if (Math.abs(Math.log(zoomGoal.z / cam.zoom)) < 0.003) zoomGoal = null;
+  }
+  if (flight) lastMove = now;
+  if (now - lastMove > 500 && !selected) writeViewHash();
   const [vx0, vy0] = screenToWorld(0, 0);
   const [vx1, vy1] = screenToWorld(W, H);
   const view = { x0: vx0, y0: vy0, x1: vx1, y1: vy1, zoom: cam.zoom };
@@ -92,13 +113,17 @@ function frame(now, dt) {
   ctx.fillStyle = BG[mode];
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   const s = dpr * cam.zoom;
-  ctx.setTransform(s, 0, 0, s, dpr * (W / 2 - cam.x * cam.zoom), dpr * (H / 2 - cam.y * cam.zoom));
+  // Pan offset in whole device pixels, so cached chunks never land between
+  // pixels and shimmer while the map moves.
+  const tx = Math.round(dpr * (W / 2 - cam.x * cam.zoom));
+  const ty = Math.round(dpr * (H / 2 - cam.y * cam.zoom));
   ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
 
-  const want = cam.zoom * dpr;
-  const level = LEVELS.find((l) => l >= want * 0.9);
-  if (!level || want < LEVELS[0] * 0.6) {
+  const level = pickLevel(s);
+  if (level === null) {
     // far out: the pre-rendered overview of the whole region
+    ctx.setTransform(s, 0, 0, s, tx, ty);
     drawOverview(vx0, vy0, vx1, vy1);
     tint(vx0, vy0, vx1, vy1);
   } else {
@@ -111,15 +136,19 @@ function frame(now, dt) {
         if (x0 > bounds.x1 || x0 + span < bounds.x0 || y0 > bounds.y1 || y0 + span < bounds.y0) continue;
         let c = city.get(level, cx, cy);
         if (!c && performance.now() < budgetEnd) c = city.render(level, cx, cy, makeCanvas);
-        if (c) ctx.drawImage(c, x0, y0, span + 0.6 / cam.zoom, span + 0.6 / cam.zoom);
-        else {
+        const r = deviceRect(x0, y0, span, s, tx, ty);
+        if (c) ctx.drawImage(c, r.x, r.y, r.w, r.h);
+        else if (!drawStandIn(level, x0, y0, span, s, tx, ty, r)) {
+          ctx.setTransform(s, 0, 0, s, tx, ty);
           drawOverview(x0, y0, x0 + span, y0 + span);
           tint(x0, y0, x0 + span, y0 + span);
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
         }
       }
     }
   }
 
+  ctx.setTransform(s, 0, 0, s, tx, ty);
   life.draw(ctx, view, opts);
   if (hovered || selected) outline(hovered || selected);
 
@@ -127,6 +156,60 @@ function frame(now, dt) {
   if (opts.labels) drawLabels();
   drawMinimap();
   if (overview) $('loading').hidden = true;
+}
+
+// Detail level for the current scale (device px per world px). Always at least
+// as sharp as the screen, and sticky: it only changes when the current level
+// would blur or would waste a lot of work, so small zooms don't flip levels.
+let curLevel = null;
+function pickLevel(want) {
+  if (want < LEVELS[0] * 0.6) return (curLevel = null);
+  if (curLevel && curLevel >= want * 0.97 && curLevel <= want * 2.5) return curLevel;
+  curLevel = LEVELS.find((l) => l >= want * 0.97) || LEVELS[LEVELS.length - 1];
+  return curLevel;
+}
+
+/** A world-space square as a whole-device-pixel rectangle; neighbours share edges exactly. */
+function deviceRect(x0, y0, span, s, tx, ty) {
+  const x = Math.round(x0 * s + tx);
+  const y = Math.round(y0 * s + ty);
+  return { x, y, w: Math.round((x0 + span) * s + tx) - x, h: Math.round((y0 + span) * s + ty) - y };
+}
+
+/**
+ * While a chunk is still being painted, show the same area from chunks already
+ * cached at another level (nearest level first) instead of the blurry overview.
+ */
+function drawStandIn(level, x0, y0, span, s, tx, ty, r) {
+  const others = LEVELS.filter((l) => l !== level).sort((a, b) => Math.abs(Math.log(a / level)) - Math.abs(Math.log(b / level)));
+  for (const L of others) {
+    const sp = CHUNK / L;
+    const cx0 = Math.floor(x0 / sp);
+    const cx1 = Math.floor((x0 + span - 1e-6) / sp);
+    const cy0 = Math.floor(y0 / sp);
+    const cy1 = Math.floor((y0 + span - 1e-6) / sp);
+    if ((cx1 - cx0 + 1) * (cy1 - cy0 + 1) > 16) continue;
+    const parts = [];
+    for (let cy = cy0; cy <= cy1; cy++) {
+      for (let cx = cx0; cx <= cx1; cx++) {
+        const c = city.get(L, cx, cy);
+        if (!c) break;
+        parts.push([c, cx, cy]);
+      }
+    }
+    if (parts.length !== (cx1 - cx0 + 1) * (cy1 - cy0 + 1)) continue;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(r.x, r.y, r.w, r.h);
+    ctx.clip();
+    for (const [c, cx, cy] of parts) {
+      const q = deviceRect(cx * sp, cy * sp, sp, s, tx, ty);
+      ctx.drawImage(c, q.x, q.y, q.w, q.h);
+    }
+    ctx.restore();
+    return true;
+  }
+  return false;
 }
 
 function tint(x0, y0, x1, y1) {
@@ -332,7 +415,9 @@ function setupInput() {
     canvas.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, [e.clientX, e.clientY]);
     flight = null;
-    if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, moved: 0 };
+    glide = null;
+    zoomGoal = null;
+    if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, moved: 0, trail: [[performance.now(), e.clientX, e.clientY]] };
     if (pointers.size === 2) {
       const [a, b] = [...pointers.values()];
       pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), zoom: cam.zoom };
@@ -350,6 +435,10 @@ function setupInput() {
       const dx = e.clientX - drag.x;
       const dy = e.clientY - drag.y;
       drag.moved = Math.max(drag.moved, Math.hypot(dx, dy));
+      const t = performance.now();
+      drag.trail.push([t, e.clientX, e.clientY]);
+      while (drag.trail.length > 2 && t - drag.trail[0][0] > 120) drag.trail.shift();
+      lastMove = t;
       cam.x = drag.cx - dx / cam.zoom;
       cam.y = drag.cy - dy / cam.zoom;
       clampCam();
@@ -366,6 +455,16 @@ function setupInput() {
   });
   const end = (e) => {
     if (drag && drag.moved < 6 && pointers.size === 1) select(pickLandmark(e.clientX, e.clientY));
+    else if (drag && pointers.size === 1) {
+      // keep gliding in the direction of the throw
+      const [t0, x0, y0] = drag.trail[0];
+      const ms = performance.now() - t0;
+      if (ms > 0 && ms < 200) {
+        const vx = (-(e.clientX - x0) / cam.zoom) * (1000 / ms);
+        const vy = (-(e.clientY - y0) / cam.zoom) * (1000 / ms);
+        if (Math.hypot(vx, vy) * cam.zoom > 120) glide = { vx, vy };
+      }
+    }
     pointers.delete(e.pointerId);
     if (pointers.size < 2) pinch = null;
     if (pointers.size === 0) drag = null;
@@ -381,7 +480,16 @@ function setupInput() {
     (e) => {
       e.preventDefault();
       flight = null;
-      zoomAt(e.clientX, e.clientY, cam.zoom * Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0018)));
+      glide = null;
+      if (e.ctrlKey) {
+        // trackpad pinch: follow the fingers directly
+        zoomGoal = null;
+        zoomAt(e.clientX, e.clientY, cam.zoom * Math.exp(-e.deltaY * 0.01));
+        return;
+      }
+      const from = zoomGoal ? zoomGoal.z : cam.zoom;
+      const z = Math.max(minZoom, Math.min(MAX_ZOOM, from * Math.exp(-e.deltaY * 0.0022)));
+      zoomGoal = { z, sx: e.clientX, sy: e.clientY };
     },
     { passive: false },
   );
@@ -395,6 +503,7 @@ function setupInput() {
     else if (e.key === '+' || e.key === '=') zoomAt(W / 2, H / 2, cam.zoom * 1.3);
     else if (e.key === '-') zoomAt(W / 2, H / 2, cam.zoom / 1.3);
     else if (e.key === 'Escape') select(null);
+    else if (e.key === 'h' || e.key === 'H') togglePanels();
     else return;
     clampCam();
   });
@@ -421,7 +530,10 @@ function setupInput() {
 function renderList() {
   const ul = $('list');
   ul.replaceChildren();
+  const q = ($('search')?.value || '').trim().toLowerCase();
+  const match = (...names) => !q || names.some((n) => n && n.toLowerCase().includes(q));
   for (const lm of [...landmarks].sort((a, b) => a.name.localeCompare(b.name))) {
+    if (!match(lm.name, lm.hi)) continue;
     const li = document.createElement('li');
     const b = document.createElement('button');
     b.type = 'button';
@@ -439,6 +551,62 @@ function renderList() {
     li.append(b);
     ul.append(li);
   }
+  if (!q) return;
+  // neighbourhoods and cities
+  for (const [name, lat, lon, tier] of DISTRICT_LABELS) {
+    if (!match(name)) continue;
+    const li = document.createElement('li');
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'lm';
+    const n = document.createElement('span');
+    n.textContent = name;
+    const h = document.createElement('span');
+    h.className = 'hi';
+    h.textContent = tier === 1 ? 'city' : tier === 'water' ? 'river' : 'area';
+    b.append(n, h);
+    b.addEventListener('click', () => {
+      select(null);
+      const p = llToEs(lat, lon);
+      const [x, y] = iso(p.e, p.s);
+      flyTo(x, y, tier === 1 ? 0.12 : 0.45);
+      if (window.innerWidth < 720) document.body.classList.remove('list-open');
+    });
+    li.append(b);
+    ul.append(li);
+  }
+  if (!ul.children.length) {
+    const li = document.createElement('li');
+    li.className = 'empty';
+    li.textContent = `Nothing called “${q}” yet`;
+    ul.append(li);
+  }
+}
+
+/** Keep the address bar on the current view, so a copied link opens here. */
+function writeViewHash() {
+  const g = unIso(cam.x, cam.y);
+  const ll = esToLL(g.e, g.s);
+  const h = `@${ll.lat.toFixed(5)},${ll.lon.toFixed(5)},${cam.zoom.toFixed(3)}z`;
+  if (h === viewHash) return;
+  viewHash = h;
+  setHash(h);
+}
+
+function readViewHash() {
+  const m = /^#@(-?[\d.]+),(-?[\d.]+),([\d.]+)z$/.exec(location.hash);
+  if (!m) return false;
+  const p = llToEs(+m[1], +m[2]);
+  const [x, y] = iso(p.e, p.s);
+  Object.assign(cam, { x, y, zoom: +m[3] });
+  clampCam();
+  viewHash = location.hash.slice(1);
+  return true;
+}
+
+function togglePanels() {
+  const on = document.body.classList.toggle('clean');
+  $('panels').setAttribute('aria-pressed', String(!on));
 }
 
 function setTimeOfDay(m) {
@@ -470,6 +638,11 @@ function setupUI() {
   });
   $('card-close').addEventListener('click', () => select(null));
   $('list-toggle').addEventListener('click', () => document.body.classList.toggle('list-open'));
+  $('search').addEventListener('input', () => renderList());
+  $('search').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') $('list').querySelector('button')?.click();
+  });
+  $('panels').addEventListener('click', togglePanels);
   renderList();
 }
 
@@ -511,6 +684,7 @@ async function boot() {
   setupInput();
   setupUI();
   home(false);
+  readViewHash();
   const fromHash = landmarks.find((l) => '#' + l.id === location.hash);
   if (fromHash) select(fromHash);
 
