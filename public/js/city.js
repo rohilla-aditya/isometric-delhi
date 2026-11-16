@@ -305,6 +305,7 @@ export class City {
       ctx.stroke();
     }
     if (level >= 2) for (const l of lines) if (l.cls === 6 && !(l.flags & 1)) parkedCars(ctx, l);
+    if (level >= 2) for (const l of lines) if ((l.cls === 5 || l.cls === 6 || l.cls === 15) && !(l.flags & 1)) streetLife(ctx, l);
     if (getMode() !== 'day' && level >= 1 / 4) {
       ctx.fillStyle = L('#ffcf7a', night ? 0.5 : 0.28);
       for (const l of lines) {
@@ -448,9 +449,9 @@ export class City {
           this.windows(ctx, f, h, b.seed, night, b.kind, shop);
         }
         if (detail) {
-          // pixel-art outline down the corners and along the foot of the wall
-          ctx.strokeStyle = C(col, f.f * 0.62);
-          ctx.lineWidth = 0.5;
+          // bold pixel-art ink line down the corners and along the foot of the wall
+          ctx.strokeStyle = C(INK);
+          ctx.lineWidth = PIXEL / level;
           ctx.beginPath();
           ctx.moveTo(f.ae - f.as, (f.ae + f.as) / 2 - h * ZK);
           ctx.lineTo(f.ae - f.as, (f.ae + f.as) / 2);
@@ -460,29 +461,34 @@ export class City {
         }
       }
     }
-    // roof
-    ctx.beginPath();
+    // roof, kept as its own path: the detail below draws other shapes in between
+    const roof = new Path2D();
     for (let k = 0; k < n; k++) {
       const x = p[k * 2] - p[k * 2 + 1];
       const y = (p[k * 2] + p[k * 2 + 1]) / 2 - h * ZK;
-      if (k) ctx.lineTo(x, y);
-      else ctx.moveTo(x, y);
+      if (k) roof.lineTo(x, y);
+      else roof.moveTo(x, y);
     }
-    ctx.closePath();
+    roof.closePath();
     ctx.fillStyle = C(walls ? roofCol : col, walls ? 1.06 : 1);
-    ctx.fill();
+    ctx.fill(roof);
     if (!detail) return;
-    // parapet: a darker band just inside the roof edge, then the outline
+    // inside the roof: weathering stains, then the parapet as a pale lip with
+    // a shadowed inner face, then a bold ink outline around it all
     ctx.save();
-    ctx.clip();
+    ctx.clip(roof);
     if (b.kind === 4) corrugate(ctx, b, h, roofCol);
-    ctx.strokeStyle = C(roofCol, 0.84);
-    ctx.lineWidth = 1.6;
-    ctx.stroke();
+    else weather(ctx, b, h, roofCol, level);
+    ctx.strokeStyle = C(roofCol, 0.8);
+    ctx.lineWidth = 3.4;
+    ctx.stroke(roof);
+    ctx.strokeStyle = C(roofCol, 1.16);
+    ctx.lineWidth = 1.7;
+    ctx.stroke(roof);
     ctx.restore();
-    ctx.strokeStyle = C(col, 0.55);
-    ctx.lineWidth = 0.6;
-    ctx.stroke();
+    ctx.strokeStyle = C(INK);
+    ctx.lineWidth = PIXEL / level;
+    ctx.stroke(roof);
     if (level >= 2 || b.area < 4000) this.roofTop(ctx, b, h, col, roofCol);
   }
 
@@ -523,6 +529,12 @@ export class City {
         }
       }
     }
+    // washing drying on a line
+    if (b.kind <= 2 && b.area > 70 && r(30) < 0.35) {
+      const a0 = [b.ce + (r(31) - 0.5) * Math.sqrt(b.area) * 0.5, b.cs + (r(32) - 0.5) * Math.sqrt(b.area) * 0.5];
+      const a1 = [a0[0] + 4, a0[1] - 1.5];
+      if (inside(...a0) && inside(...a1)) washing(ctx, a0, a1, h, b.seed);
+    }
     // a dish on some houses
     if (b.kind <= 1 && r(7) < 0.3) {
       const e = b.ce + (r(8) - 0.5) * Math.sqrt(b.area) * 0.5;
@@ -547,7 +559,7 @@ export class City {
     const first = shop ? 1 : 0;
     const winH = glass ? 2.2 : 1.4;
     const winW = glass ? 0.86 : 0.42;
-    const day = glass ? C('#9fc0d6', f.f + 0.12) : C('#4d5a66', f.f + 0.15);
+    const day = glass ? C('#9fc0d6', f.f + 0.12) : C('#3c5573', f.f + 0.15);
     for (let k = first; k < floors; k++) {
       const z0 = k * 3.2 + (glass ? 0.5 : 1.1);
       if (z0 + winH > h - 0.4) break;
@@ -570,6 +582,122 @@ export class City {
       }
     }
   }
+}
+
+const INK = '#3b332d'; // outline colour
+
+/** Rain stains and dirt on a bare concrete roof (path is clipped to the roof). */
+function weather(ctx, b, h, roofCol, level) {
+  const size = Math.sqrt(b.area);
+  const n = 2 + Math.floor(hash2(b.seed, 40, 7) * 4);
+  for (let k = 0; k < n; k++) {
+    const e = b.ce + (hash2(b.seed, 41 + k, 7) - 0.5) * size;
+    const s = b.cs + (hash2(b.seed, 51 + k, 7) - 0.5) * size;
+    const r = size * (0.12 + hash2(b.seed, 61 + k, 7) * 0.22);
+    const [x, y] = iso(e, s, h);
+    ctx.fillStyle = C(k % 3 === 2 ? '#8a7a64' : '#6f6a62');
+    ctx.globalAlpha = 0.16 + hash2(b.seed, 71 + k, 7) * 0.12;
+    ctx.beginPath();
+    ctx.ellipse(x, y, r, r * 0.55, hash2(b.seed, 81 + k, 7) * 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  if (level < 2) return;
+  // grit: scattered single art pixels
+  const dot = PIXEL / level;
+  const [bx0, by0, bx1, by1] = bbox(b.pts);
+  for (let k = 0; k < Math.min(60, b.area / 12); k++) {
+    const e = bx0 + hash2(b.seed, 100 + k, 9) * (bx1 - bx0);
+    const s = by0 + hash2(b.seed, 200 + k, 9) * (by1 - by0);
+    const [x, y] = iso(e, s, h);
+    ctx.fillStyle = C(roofCol, k % 2 ? 0.82 : 1.12);
+    ctx.fillRect(x, y, dot, dot);
+  }
+}
+
+const CLOTHES = ['#d9443a', '#2f7bd8', '#f2c318', '#3a9a4a', '#ffffff', '#e05aa0', '#8b3fb0'];
+
+function washing(ctx, a, b, z, seed) {
+  const [ax, ay] = iso(a[0], a[1], z + 1.6);
+  const [bx, by] = iso(b[0], b[1], z + 1.6);
+  ctx.strokeStyle = C('#5a5550');
+  ctx.lineWidth = 0.25;
+  ctx.beginPath();
+  ctx.moveTo(ax, ay + 1.6);
+  ctx.lineTo(ax, ay);
+  ctx.lineTo(bx, by);
+  ctx.lineTo(bx, by + 1.6);
+  ctx.stroke();
+  const n = 4 + ((seed >>> 0) % 3);
+  for (let k = 0; k < n; k++) {
+    const t = (k + 0.5) / n;
+    const x = ax + (bx - ax) * t;
+    const y = ay + (by - ay) * t;
+    ctx.fillStyle = C(CLOTHES[((seed >>> 0) + k * 3) % CLOTHES.length]);
+    ctx.fillRect(x - 0.35, y, 0.7, 0.9 + ((seed >> k) & 1) * 0.4);
+  }
+}
+
+const SKIN = ['#8d5a3b', '#a8714c', '#6f442b', '#b9825a'];
+const DRESS = ['#d9443a', '#2f7bd8', '#f2c318', '#3a9a4a', '#ffffff', '#e05aa0', '#8b3fb0', '#f07c1c', '#4a4a52', '#e9e1cf'];
+
+/** People on the footpaths and the odd vendor cart with its umbrella. */
+function streetLife(ctx, l) {
+  const p = l.pts;
+  const half = (LINE_STYLE[l.cls][0] + 3) / 2;
+  for (let k = 0; k < p.length - 2; k += 2) {
+    const ae = p[k];
+    const as = p[k + 1];
+    const de = p[k + 2] - ae;
+    const ds = p[k + 3] - as;
+    const len = Math.hypot(de, ds);
+    if (len < 8) continue;
+    const ue = de / len;
+    const us = ds / len;
+    for (let t = 3; t < len - 3; t += 3.2) {
+      const r = hash2(Math.round((ae + ue * t) * 2), Math.round((as + us * t) * 2), 47);
+      if (r > (l.cls === 15 ? 0.3 : 0.12)) continue;
+      const side = r < 0.06 ? -1 : 1;
+      const off = l.cls === 15 ? (r - 0.15) * 6 : side * (half - 0.4);
+      const e = ae + ue * t - us * off;
+      const s = as + us * t + ue * off;
+      if (r < 0.012 && l.cls !== 15) cart(ctx, e, s, r);
+      else person(ctx, e, s, r);
+    }
+  }
+}
+
+function person(ctx, e, s, r) {
+  const [x, y] = iso(e, s);
+  const q = Math.floor(r * 1e4);
+  ctx.fillStyle = 'rgba(40,40,70,0.25)';
+  ctx.fillRect(x - 0.2, y - 0.2, 1.1, 0.5);
+  ctx.fillStyle = C(DRESS[q % DRESS.length]);
+  ctx.fillRect(x - 0.35, y - 1.5, 0.7, 1.3);
+  ctx.fillStyle = C(SKIN[(q >> 3) % SKIN.length]);
+  ctx.fillRect(x - 0.3, y - 2.1, 0.6, 0.6);
+}
+
+function cart(ctx, e, s, r) {
+  const [x, y] = iso(e, s);
+  const q = Math.floor(r * 1e5);
+  ctx.fillStyle = C('#8a5a34');
+  ctx.fillRect(x - 1.2, y - 1.2, 2.4, 1);
+  ctx.fillStyle = C(['#e8402c', '#f2c318', '#3a9a4a', '#f07c1c'][q % 4]);
+  ctx.fillRect(x - 1.1, y - 1.8, 2.2, 0.6); // the fruit and vegetables
+  ctx.strokeStyle = C('#5a5550');
+  ctx.lineWidth = 0.2;
+  ctx.beginPath();
+  ctx.moveTo(x, y - 1.8);
+  ctx.lineTo(x, y - 3.6);
+  ctx.stroke();
+  ctx.fillStyle = C(AWNINGS[q % AWNINGS.length]);
+  ctx.beginPath();
+  ctx.moveTo(x - 1.8, y - 3.2);
+  ctx.lineTo(x, y - 4.2);
+  ctx.lineTo(x + 1.8, y - 3.2);
+  ctx.closePath();
+  ctx.fill();
 }
 
 const AWNINGS = ['#d9443a', '#2f7bd8', '#f2c318', '#3a9a4a', '#e07a2e', '#8b3fb0', '#e05aa0'];
@@ -816,7 +944,7 @@ function shadows(ctx, things) {
       addPoly(ctx, [ae - as, (ae + as) / 2, be - bs, (be + bs) / 2, be + de - (bs + ds), (be + de + bs + ds) / 2, ae + de - (as + ds), (ae + de + as + ds) / 2]);
     }
   }
-  ctx.fillStyle = dusk ? 'rgba(70,40,70,0.22)' : 'rgba(40,45,75,0.15)';
+  ctx.fillStyle = dusk ? 'rgba(70,40,90,0.26)' : 'rgba(50,60,120,0.2)';
   ctx.fill('nonzero');
 }
 
