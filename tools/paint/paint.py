@@ -71,13 +71,16 @@ def load():
         vae_path=os.path.join(MODELS, "ae.safetensors"),
         n_threads=THREADS,
         verbose=False,
+        # keeps a 768 x 768 picture within ~13 GB, so it fits a 16 GB runner
+        diffusion_flash_attn=True,
+        enable_mmap=True,
     )
 
 
 def repaint(pipe, image, prompt, strength, steps, seed):
     w, h = max(64, (image.width // 64) * 64), max(64, (image.height // 64) * 64)
     out = pipe.generate_image(prompt=prompt, init_image=image.resize((w, h), Image.LANCZOS), strength=strength,
-                              width=w, height=h, sample_steps=steps, cfg_scale=1.0, seed=seed)[0]
+                              width=w, height=h, sample_steps=steps, cfg_scale=1.0, seed=seed, vae_tiling=True)[0]
     return out.convert("RGB").resize(image.size, Image.LANCZOS)
 
 
