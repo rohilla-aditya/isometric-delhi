@@ -1,11 +1,13 @@
-# Rebuilds the map data from OpenStreetMap and commits it. Runs when the
-# pipeline changes, or by hand from the Actions tab to pick up newer edits.
+# Rebuilds the map data from OpenStreetMap, Overture footprints and Google
+# Open Buildings heights, and commits it. Runs when the pipeline changes, or
+# by hand from the Actions tab to pick up newer edits.
 name: data
 
 on:
   push:
     paths:
       - tools/build_data.py
+      - tools/heights.py
       - tools/requirements.txt
   workflow_dispatch:
 
@@ -20,13 +22,13 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 300
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.13"
 
       - name: Install tools
         run: |
@@ -47,7 +49,7 @@ jobs:
       - name: Build map data
         run: |
           rm -rf public/data
-          python tools/build_data.py ncr.osm.pbf
+          WORKDIR="$RUNNER_TEMP" python tools/build_data.py ncr.osm.pbf
           rm ncr.osm.pbf
           du -sh public/data
 
@@ -57,7 +59,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A public/data
           if git diff --cached --quiet; then echo "no changes"; exit 0; fi
-          git commit -q -m "Rebuild map data from OpenStreetMap" -m "Data © OpenStreetMap contributors, ODbL."
+          git commit -q -m "Rebuild map data" -m "Data © OpenStreetMap contributors (ODbL), Overture Maps (ODbL), Google Open Buildings (CC BY 4.0)."
           for k in 1 2 3 4; do
             git pull -q --rebase origin "${GITHUB_REF_NAME}" && git push -q origin "HEAD:${GITHUB_REF_NAME}" && break
             sleep $((k * 5))

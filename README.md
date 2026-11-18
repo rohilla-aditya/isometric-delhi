@@ -29,9 +29,14 @@ landmarks at their real size, from the Qutub Minar to the Signature Bridge.
   ruins, places of faith and modern Delhi. The map flies from stop to stop
   with each landmark's card; pause, step back and forth, or drag to take over.
 
-Most Delhi buildings in OpenStreetMap have no height, so heights are guessed
-from the building's type and size where `height` or `building:levels` is
-missing.
+Buildings come from OpenStreetMap, with [Overture Maps](https://overturemaps.org)
+footprints (ODbL) added wherever OSM has none. Heights come from the OSM
+`height` / `building:levels` tags where mapped, otherwise from
+[Google Open Buildings 2.5D Temporal](https://sites.research.google/gr/open-buildings/)
+(2023, CC BY 4.0): the presence-weighted mean of its 0.5 m height raster under
+each footprint, calibrated against the tagged OSM buildings
+(`tools/heights.py`, after Pixel Chennai's approach). Only buildings neither
+dataset covers fall back to a guess from type and size.
 
 ## Run locally
 

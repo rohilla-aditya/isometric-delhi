@@ -25,6 +25,7 @@ import struct
 import sys
 from collections import defaultdict
 
+import numpy as np
 import osmium
 import shapely
 from shapely import wkb
@@ -235,7 +236,9 @@ class Collector(osmium.SimpleHandler):
         self.wkb = osmium.geom.WKBFactory()
         self.areas = []      # (class, shapely geometry)
         self.lines = []      # (class, bridge, LineString)
-        self.buildings = []  # (height, kind, Polygon)
+        # (tagged height or None, kind name, flat coords, cx, cy, seed, area, from OSM);
+        # finish_heights() turns them into (height, kind, coords, cx, cy)
+        self.buildings = []
         self.seen = 0
 
     def area(self, a):
@@ -282,12 +285,79 @@ class Collector(osmium.SimpleHandler):
         p = p.simplify(0.6, preserve_topology=False)
         if p.is_empty or not isinstance(p, Polygon):
             return
-        kind = building_kind(tags)
-        h = parse_height(tags) or guess_height(kind, p.area, oid)
         c = p.centroid
         # plain tuples, not shapely objects: millions of them must fit in memory
         coords = tuple(round(v, 1) for xy in list(p.exterior.coords)[:-1] for v in xy)
-        self.buildings.append((max(3, min(255, round(h))), KIND[kind], coords, c.x, c.y))
+        self.buildings.append((parse_height(tags), building_kind(tags), coords, c.x, c.y, oid, p.area, True))
+
+
+def to_map(lonlat):
+    out = np.empty_like(lonlat, dtype=float)
+    out[:, 0] = (lonlat[:, 0] - BOUNDS["lonMin"]) * MX
+    out[:, 1] = (BOUNDS["latMax"] - lonlat[:, 1]) * MY
+    return out
+
+
+def to_lonlat(xy):
+    out = np.empty_like(xy, dtype=float)
+    out[:, 0] = xy[:, 0] / MX + BOUNDS["lonMin"]
+    out[:, 1] = BOUNDS["latMax"] - xy[:, 1] / MY
+    return out
+
+
+def finish_heights(col):
+    """Add Overture footprints, then give every building a height.
+
+    A tagged OSM height wins; then Google Open Buildings' measured height,
+    calibrated against the tagged ones; the type-and-size guess only where
+    neither exists. HEIGHTS=0 skips both datasets (for quick local builds).
+    """
+    blds = col.buildings
+    g = None
+    if os.environ.get("HEIGHTS", "1") != "0":
+        import heights
+        from shapely import STRtree
+
+        work = os.environ.get("WORKDIR", ".")
+        bbox = (BOUNDS["lonMin"], BOUNDS["latMin"], BOUNDS["lonMax"], BOUNDS["latMax"])
+        tree = STRtree([Polygon(np.array(b[2]).reshape(-1, 2)) for b in blds])
+        added = 0
+        for k, (ring, cls, h) in enumerate(heights.overture_buildings(bbox, work)):
+            p = Polygon(to_map(ring))
+            if not p.is_valid or p.area < 20:
+                continue
+            p = p.simplify(0.6, preserve_topology=False)
+            if p.is_empty or not isinstance(p, Polygon):
+                continue
+            c = p.centroid
+            if len(tree.query(c, predicate="intersects")):
+                continue  # an OSM building already stands here
+            coords = tuple(round(v, 1) for xy in list(p.exterior.coords)[:-1] for v in xy)
+            kind = building_kind({"building": cls}) if cls else "other"
+            blds.append((h if h and 2 < h < 300 else None, kind, coords, c.x, c.y, 10**12 + k, p.area, False))
+            added += 1
+        print(f"overture: added {added} footprints where OSM has none", flush=True)
+        del tree
+        rings = [to_lonlat(np.array(b[2]).reshape(-1, 2)) for b in blds]
+        g = heights.google_heights(rings, bbox, work)
+        del rings
+        tagged = np.array([b[0] if b[0] and b[7] else np.nan for b in blds], dtype=float)
+        cal = heights.calibration(g, tagged)
+    out = []
+    n_tag = n_google = n_guess = 0
+    for i, (tag, kind, coords, cx, cy, seed, area, _osm) in enumerate(blds):
+        if tag:
+            h = tag
+            n_tag += 1
+        elif g is not None and not math.isnan(g[i]):
+            h = cal(g[i])
+            n_google += 1
+        else:
+            h = guess_height(kind, area, seed)
+            n_guess += 1
+        out.append((max(3, min(255, round(h))), KIND[kind], coords, cx, cy))
+    col.buildings = out
+    print(f"heights: {n_tag} tagged, {n_google} measured (Google 2.5D), {n_guess} guessed", flush=True)
 
 
 def clip_to_cells(geom, fn):
@@ -317,6 +387,7 @@ def main(paths):
         print("reading", p, flush=True)
         col.apply_file(p, locations=True, idx="flex_mem")
     print(f"{len(col.buildings)} buildings, {len(col.areas)} areas, {len(col.lines)} lines", flush=True)
+    finish_heights(col)
 
     cells = defaultdict(lambda: {"areas": [], "lines": [], "buildings": []})
     span = box(0, 0, WIDTH, HEIGHT)

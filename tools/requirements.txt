@@ -2,3 +2,9 @@
 osmium==4.0.2
 shapely==2.0.6
 pillow==11.0.0
+numpy==2.5.5
+# Overture footprints and Google Open Buildings heights (tools/heights.py)
+overturemaps==0.18.0
+pyarrow==26.0.1
+rasterio==1.5.2
+pyproj==3.8.0
