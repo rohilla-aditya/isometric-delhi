@@ -4,6 +4,8 @@ import { CellStore } from './cells.js';
 import { City, CHUNK, LEVELS, placeLandmarks, drawLandmarkModel, loadSprites } from './city.js';
 import { Life } from './life.js';
 import { setMode } from './draw.js';
+import { pickBuilding, describe, roofTop, outlineBuilding } from './inspect.js';
+import { TOURS, WIKI } from './tours.js';
 
 const DATA = 'data';
 const BG = { day: '#e9e2d3', dusk: '#e2b99a', night: '#0f1526' };
@@ -39,6 +41,11 @@ let viewHash = '';
 let photoCredits = {}; // landmark id -> Commons author, licence and source
 let painted = null; // AI-painted city tiles: { tile, size, have: Set, images: Map }
 let selected = null;
+let pinned = null; // building tapped for details
+let peek = null; // building under the mouse
+let tour = null; // { t, i, playing, next }
+const TOUR_STOP_MS = 11000;
+const wikiCache = new Map();
 let hovered = null;
 let dirty = true;
 
@@ -89,6 +96,7 @@ function drawOverview(x0, y0, x1, y1) {
 
 function frame(now, dt) {
   if (flight) stepFlight(now);
+  if (tour && tour.playing && now > tour.next && !flight) tourGo(tour.i + 1);
   if (glide && !flight) {
     cam.x += glide.vx * dt;
     cam.y += glide.vy * dt;
@@ -157,10 +165,13 @@ function frame(now, dt) {
   ctx.setTransform(s, 0, 0, s, tx, ty);
   life.draw(ctx, view, opts);
   if (hovered || selected) outline(hovered || selected);
+  const shown = pinned || peek;
+  if (shown) outlineBuilding(ctx, shown, cam.zoom, mode === 'night' ? 'rgba(255,214,140,0.95)' : 'rgba(214,72,30,0.95)');
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (opts.labels) drawLabels();
   drawMinimap();
+  placeTip();
   if (overview) $('loading').hidden = true;
 }
 
@@ -446,7 +457,9 @@ function select(lm, fly = true) {
     renderList();
     return;
   }
+  pin(null);
   showPhoto(lm);
+  showWiki(lm);
   $('card-name').textContent = lm.name;
   $('card-hi').textContent = lm.hi;
   $('card-era').textContent = lm.era;
@@ -482,6 +495,154 @@ function showPhoto(lm) {
   cap.append(c.licenseUrl ? link(c.license, c.licenseUrl) : c.license);
   cap.append(', via Wikimedia Commons');
   fig.hidden = false;
+}
+
+/** Summary from the landmark's Wikipedia article, fetched by the visitor's browser. */
+async function showWiki(lm) {
+  const box = $('card-wiki');
+  box.hidden = true;
+  const title = WIKI[lm.id];
+  if (!title) return;
+  let d = wikiCache.get(title);
+  if (!d) {
+    try {
+      const r = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title.replace(/ /g, '_'))}`);
+      if (!r.ok) return;
+      d = await r.json();
+      wikiCache.set(title, d);
+    } catch {
+      return; // offline or blocked: the card still has our own text
+    }
+  }
+  if (selected !== lm || !d.extract) return;
+  $('card-wiki-text').textContent = d.extract;
+  $('card-wiki-link').href = d.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`;
+  box.hidden = false;
+}
+
+// ------------------------------------------------------ building details --
+
+function buildingAt(sx, sy) {
+  if (cam.zoom < 0.12) return null; // too far out to point at one building
+  const [x, y] = screenToWorld(sx, sy);
+  return pickBuilding(city.store, meta.cell, x, y);
+}
+
+function pin(b) {
+  pinned = b;
+  showTip(b || peek, !b);
+}
+
+function showTip(b, isPeek = false) {
+  const tip = $('tip');
+  tip.classList.toggle('peek', isPeek);
+  if (!b) {
+    tip.hidden = true;
+    tip._b = null;
+    return;
+  }
+  if (tip._b !== b) {
+    const d = describe(b);
+    $('tip-kind').textContent = d.kind;
+    $('tip-size').textContent = d.size;
+    $('tip-place').textContent = d.place;
+    $('tip-osm').href = `https://www.openstreetmap.org/?mlat=${d.lat.toFixed(5)}&mlon=${d.lon.toFixed(5)}#map=19/${d.lat.toFixed(5)}/${d.lon.toFixed(5)}`;
+    tip._b = b;
+  }
+  tip.hidden = false;
+  placeTip();
+}
+
+/** Keep the details box just above the building as the map moves. */
+function placeTip() {
+  const tip = $('tip');
+  const b = pinned || peek;
+  if (tip.hidden || !b) return;
+  const [wx, wy] = roofTop(b);
+  const [sx, sy] = toScreen(wx, wy);
+  const w = tip.offsetWidth;
+  const h = tip.offsetHeight;
+  let x = sx - w / 2;
+  let y = sy - h - 14;
+  if (y < 8) y = sy + 24 + (b.h * cam.zoom);
+  x = Math.max(8, Math.min(W - w - 8, x));
+  y = Math.max(8, Math.min(H - h - 8, y));
+  tip.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+}
+
+// ---------------------------------------------------------------- tours --
+
+function setupTours() {
+  const list = $('tours-list');
+  for (const t of TOURS) {
+    const li = document.createElement('li');
+    const b = document.createElement('button');
+    b.type = 'button';
+    const small = document.createElement('small');
+    small.textContent = `${t.stops.length} stops · ${t.blurb}`;
+    b.append(t.name, small);
+    b.addEventListener('click', () => startTour(t));
+    li.append(b);
+    list.append(li);
+  }
+  $('tours-btn').addEventListener('click', () => toggleToursMenu());
+  $('tour-prev').addEventListener('click', () => tourGo(tour.i - 1));
+  $('tour-next').addEventListener('click', () => tourGo(tour.i + 1, true));
+  $('tour-play').addEventListener('click', () => {
+    if (!tour) return;
+    tour.playing = !tour.playing;
+    if (tour.playing && tour.i >= tour.t.stops.length - 1) tourGo(0);
+    else tour.next = performance.now() + TOUR_STOP_MS;
+    updateTourBar();
+  });
+  $('tour-end').addEventListener('click', endTour);
+}
+
+function toggleToursMenu(open = $('tours-menu').hidden) {
+  $('tours-menu').hidden = !open;
+  $('tours-btn').setAttribute('aria-expanded', String(open));
+}
+
+function startTour(t) {
+  toggleToursMenu(false);
+  tour = { t, i: -1, playing: true, next: 0 };
+  $('tourbar').hidden = false;
+  document.body.classList.add('touring');
+  tourGo(0);
+}
+
+function tourGo(i, manual = false) {
+  if (!tour) return;
+  const n = tour.t.stops.length;
+  if (i >= n) {
+    // the end: stay on the last stop
+    tour.playing = false;
+    updateTourBar();
+    return;
+  }
+  tour.i = Math.max(0, i);
+  if (manual) tour.playing = tour.playing && tour.i < n - 1;
+  select(landmarks.find((l) => l.id === tour.t.stops[tour.i]));
+  tour.next = performance.now() + TOUR_STOP_MS;
+  updateTourBar();
+}
+
+function updateTourBar() {
+  if (!tour) return;
+  const n = tour.t.stops.length;
+  const lm = landmarks.find((l) => l.id === tour.t.stops[tour.i]);
+  $('tour-name').textContent = tour.t.name;
+  $('tour-step').textContent = `${tour.i + 1} of ${n} · ${lm ? lm.name : ''}`;
+  $('tour-prev').disabled = tour.i <= 0;
+  $('tour-next').disabled = tour.i >= n - 1;
+  $('tour-play').textContent = tour.playing ? 'Pause' : tour.i >= n - 1 ? 'Replay' : 'Play';
+  $('tour-play').setAttribute('aria-pressed', String(tour.playing));
+}
+
+function endTour() {
+  tour = null;
+  $('tourbar').hidden = true;
+  document.body.classList.remove('touring');
 }
 
 function setHash(id) {
@@ -525,6 +686,10 @@ function setupInput() {
     flight = null;
     glide = null;
     zoomGoal = null;
+    if (tour?.playing) {
+      tour.playing = false;
+      updateTourBar();
+    }
     if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, moved: 0, trail: [[performance.now(), e.clientX, e.clientY]] };
     if (pointers.size === 2) {
       const [a, b] = [...pointers.values()];
@@ -555,14 +720,24 @@ function setupInput() {
     }
     if (e.pointerType === 'mouse') {
       const lm = pickLandmark(e.clientX, e.clientY);
-      if (lm !== hovered) {
+      const b = lm ? null : buildingAt(e.clientX, e.clientY);
+      if (lm !== hovered || b !== peek) {
         hovered = lm;
-        canvas.style.cursor = lm ? 'pointer' : '';
+        peek = b;
+        canvas.style.cursor = lm || b ? 'pointer' : '';
+        if (!pinned) showTip(peek, true);
       }
     }
   });
   const end = (e) => {
-    if (drag && drag.moved < 6 && pointers.size === 1) select(pickLandmark(e.clientX, e.clientY));
+    if (drag && drag.moved < 6 && pointers.size === 1) {
+      const lm = pickLandmark(e.clientX, e.clientY);
+      if (lm) select(lm);
+      else {
+        if (selected) select(null);
+        pin(buildingAt(e.clientX, e.clientY));
+      }
+    }
     else if (drag && pointers.size === 1) {
       // keep gliding in the direction of the throw
       const [t0, x0, y0] = drag.trail[0];
@@ -582,6 +757,8 @@ function setupInput() {
   canvas.addEventListener('pointercancel', end);
   canvas.addEventListener('pointerleave', () => {
     hovered = null;
+    peek = null;
+    if (!pinned) showTip(null);
   });
   canvas.addEventListener(
     'wheel',
@@ -610,7 +787,11 @@ function setupInput() {
     else if (e.key === 'ArrowDown') cam.y += step;
     else if (e.key === '+' || e.key === '=') zoomAt(W / 2, H / 2, cam.zoom * 1.3);
     else if (e.key === '-') zoomAt(W / 2, H / 2, cam.zoom / 1.3);
-    else if (e.key === 'Escape') select(null);
+    else if (e.key === 'Escape') {
+      if (pinned) pin(null);
+      else if (!$('tours-menu').hidden) toggleToursMenu(false);
+      else select(null);
+    }
     else if (e.key === 'h' || e.key === 'H') togglePanels();
     else return;
     clampCam();
@@ -751,6 +932,8 @@ function setupUI() {
     if (e.key === 'Enter') $('list').querySelector('button')?.click();
   });
   $('panels').addEventListener('click', togglePanels);
+  $('tip-close').addEventListener('click', () => pin(null));
+  setupTours();
   renderList();
 }
 
@@ -820,7 +1003,7 @@ async function boot() {
   };
   requestAnimationFrame(loop);
   window.__delhi = {
-    cam, select, setTimeOfDay, flyTo, landmarks,
+    cam, select, setTimeOfDay, flyTo, landmarks, startTour: (id) => startTour(TOURS.find((t) => t.id === id)), pin, buildingAt,
     get city() {
       return city;
     },
