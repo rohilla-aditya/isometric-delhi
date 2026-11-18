@@ -1,0 +1,146 @@
+# One chessboard pass of the city painter (see paint.yml and tools/paint/plan.py):
+# 16 shards paint the tiles of pass A or B, then the results go to the
+# `painted` branch and the site is redeployed.
+name: paint-pass
+
+on:
+  workflow_call:
+    inputs:
+      phase:
+        type: string
+        required: true
+      per_shard:
+        type: string
+        default: "30"
+
+env:
+  SHARDS: 16
+  FLUX_DIR: ${{ github.workspace }}/../models/flux
+  CMAKE_ARGS: -DGGML_NATIVE=OFF -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON
+
+jobs:
+  paint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      max-parallel: 16
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Which tiles are already painted
+        id: plan
+        run: |
+          : > done.txt
+          if git ls-remote --exit-code origin refs/heads/painted >/dev/null; then
+            git fetch -q --depth=1 origin painted
+            git show origin/painted:painters.json > painters.json 2>/dev/null || echo '{}' > painters.json
+            python3 tools/paint/done.py painters.json "$(cat tools/paint/VERSION)" > done.txt
+            if [ "${{ inputs.phase }}" = B ]; then
+              # pass B paints with its neighbours' finished art at the edges
+              mkdir -p "$RUNNER_TEMP/painted" && git archive origin/painted tiles | tar -x -C "$RUNNER_TEMP/painted"
+            fi
+          fi
+          python3 tools/paint/plan.py public/data/meta.json done.txt ${{ matrix.shard }} $SHARDS ${{ inputs.per_shard }} ${{ inputs.phase }} > tiles.json
+          echo "count=$(python3 -c 'import json;print(len(json.load(open("tiles.json"))))')" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-python@v5
+        if: steps.plan.outputs.count != '0'
+        with:
+          python-version: "3.13"
+
+      - uses: actions/setup-node@v4
+        if: steps.plan.outputs.count != '0'
+        with:
+          node-version: 22
+
+      - name: Cache the compiled painter
+        if: steps.plan.outputs.count != '0'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ hashFiles('tools/paint/requirements.txt') }}-avx2
+
+      - name: Install the painter
+        if: steps.plan.outputs.count != '0'
+        run: |
+          pip install -q -r tools/paint/requirements.txt
+          cd tools/paint && npm install --no-save --silent playwright@1.49.1 && npx playwright install --with-deps chromium
+
+      - name: Download the model
+        if: steps.plan.outputs.count != '0'
+        run: tools/paint/get_models.sh
+
+      - name: Render the tiles
+        if: steps.plan.outputs.count != '0'
+        run: |
+          PORT=8080 node serve.mjs &
+          sleep 2
+          node tools/paint/render.cjs http://localhost:8080/ tiles tiles.json renders
+
+      - name: Paint the tiles
+        if: steps.plan.outputs.count != '0'
+        run: |
+          ctx=""
+          if [ -d "$RUNNER_TEMP/painted/tiles" ]; then ctx="--context $RUNNER_TEMP/painted/tiles"; fi
+          python tools/paint/paint.py tiles renders out --order tiles.json $ctx --limit-minutes 285
+          mv out/qa.json "out/qa-${{ inputs.phase }}-${{ matrix.shard }}.json"
+
+      - uses: actions/upload-artifact@v4
+        if: steps.plan.outputs.count != '0'
+        with:
+          name: painted-${{ inputs.phase }}-${{ matrix.shard }}
+          path: out/
+          retention-days: 3
+
+  publish:
+    needs: paint
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: painted-${{ inputs.phase }}-*
+          path: new
+          merge-multiple: true
+
+      - name: Add the new tiles to the painted branch
+        run: |
+          if ! ls new/*.webp >/dev/null 2>&1; then echo "nothing new"; exit 0; fi
+          version="$(cat tools/paint/VERSION)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code origin refs/heads/painted >/dev/null; then
+            git fetch -q --depth=1 origin painted && git checkout -q -B painted origin/painted
+          else
+            git checkout -q --orphan painted && git rm -rq --cached . && git clean -fdq -e new
+          fi
+          mkdir -p tiles && cp new/*.webp tiles/ 2>/dev/null || true
+          python3 - "$version" <<'PY'
+          import json, os, sys
+          made = json.load(open('painters.json')) if os.path.exists('painters.json') else {}
+          for f in os.listdir('new'):
+              if f.endswith('.webp'):
+                  made[f[:-5]] = sys.argv[1]
+          json.dump(dict(sorted(made.items())), open('painters.json', 'w'), indent=0)
+          qa = json.load(open('qa.json')) if os.path.exists('qa.json') else {}
+          for f in os.listdir('new'):
+              if f.startswith('qa-') and f.endswith('.json'):
+                  qa.update(json.load(open(os.path.join('new', f))))
+          json.dump(dict(sorted(qa.items())), open('qa.json', 'w'), indent=0)
+          t = sorted(f[:-5] for f in os.listdir('tiles') if f.endswith('.webp'))
+          json.dump({'tile': 1024, 'size': 512, 'margin': 64, 'tiles': t}, open('index.json', 'w'))
+          PY
+          rm -rf new
+          git add tiles index.json painters.json qa.json
+          git commit -q -m "Pass ${{ inputs.phase }}: $(ls tiles | wc -l) city tiles ($version)"
+          git push -q origin painted
+          gh workflow run pages.yml --ref main
+        env:
+          GH_TOKEN: ${{ github.token }}
