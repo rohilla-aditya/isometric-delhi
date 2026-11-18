@@ -21,7 +21,13 @@ landmarks at their real size, from the Qutub Minar to the Signature Bridge.
   kites fly over the colonies and black kites circle Jama Masjid.
 - Deep links: `/#red-fort`, `/#lotus-temple`, … open on that landmark.
 - Each landmark card shows a real photo from Wikimedia Commons, credited to
-  its photographer under its free licence.
+  its photographer under its free licence, and a summary from its Wikipedia
+  article (fetched by the visitor's browser, CC BY-SA).
+- **Tap or hover any building** to see its type, height, floors, footprint and
+  neighbourhood, with a link to it on OpenStreetMap.
+- **Guided tours** (Tours button): Lutyens' Delhi, Mughal Delhi, Sultanate
+  ruins, places of faith and modern Delhi. The map flies from stop to stop
+  with each landmark's card; pause, step back and forth, or drag to take over.
 
 Most Delhi buildings in OpenStreetMap have no height, so heights are guessed
 from the building's type and size where `height` or `building:levels` is

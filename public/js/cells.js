@@ -73,7 +73,7 @@ export function decodeCell(buf, cx, cy, cell) {
     }
     ce /= n;
     cs /= n;
-    buildings.push({ h, kind, pts, ce, cs, area: Math.abs(area2) / 2, orient: Math.sign(area2) || 1, seed: (Math.round(ce * 7) * 73856093) ^ (Math.round(cs * 7) * 19349663) });
+    buildings.push({ h, kind, pts, bbox: ringBox(pts), ce, cs, area: Math.abs(area2) / 2, orient: Math.sign(area2) || 1, seed: (Math.round(ce * 7) * 73856093) ^ (Math.round(cs * 7) * 19349663) });
   }
   return { cx, cy, areas, lines, buildings };
 }
