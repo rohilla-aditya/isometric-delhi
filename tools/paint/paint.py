@@ -1,7 +1,7 @@
 """Repaint map renders as detailed pixel art with a free, open image model.
 
     python paint.py landmarks <render-dir> <out-dir> [landmark-id ...]
-    python paint.py tiles <render-dir> <out-dir> [--order tiles.json] [--limit-minutes N]
+    python paint.py tiles <render-dir> <out-dir> [--order tiles.json] [--context painted-tiles-dir] [--limit-minutes N]
 
 Model: FLUX.1 [schnell] (Black Forest Labs, Apache 2.0), 4-bit GGUF, run on
 CPU with stable-diffusion.cpp; text encoders CLIP-L and T5-XXL (4-bit). The
@@ -191,11 +191,137 @@ def harmonise(out, src, amount=0.55):
     return Image.fromarray(np.clip(o, 0, 255).astype(np.uint8))
 
 
-def tiles(src, dst, limit_minutes, order=None):
+# ------------------------------------------------------------ city tiles --
+# Rules, not more AI (Pixel Chennai's lesson): water is never painted, tiles
+# painted second see their neighbours' finished art at the edges, and every
+# tile is checked against its render and repainted if the painter strayed.
+
+WATER_RGB = (79, 156, 196)  # #4f9cc4, the map's water (public/js/city.js)
+STRIP = 64  # image px along each edge that a neighbour also covers (2 x 64 m margins)
+RETRIES = 2
+
+
+def _small(im, n=144):
+    import numpy as np
+
+    return np.asarray(im.convert("RGB").resize((n, n), Image.BOX), np.float32)
+
+
+def water_mask(render):
+    """Soft mask of the render's water, slightly grown so banks stay clean."""
+    import numpy as np
+
+    a = np.asarray(render.convert("RGB"), np.int16)
+    m = (np.abs(a - np.array(WATER_RGB)).max(2) < 26).astype(np.uint8) * 255
+    return Image.fromarray(m, "L").filter(ImageFilter.MaxFilter(5)).filter(ImageFilter.GaussianBlur(1.5))
+
+
+def keep_water(out, render):
+    """The painter gets shorelines wrong; the map's own water goes back on top."""
+    return Image.composite(render.convert("RGB"), out, water_mask(render))
+
+
+def _edge_weights(n, s):
+    """1 at the outer edge falling to 0 at s px in (for one side of an n px image)."""
+    import numpy as np
+
+    w = np.zeros(n, np.float32)
+    w[:s] = np.linspace(1, 0, s)
+    return w
+
+
+def neighbours(context, tx, ty):
+    """Finished art of the four edge neighbours, where it exists."""
+    if not context:
+        return {}
+    found = {}
+    for side, (dx, dy) in {"left": (-1, 0), "right": (1, 0), "top": (0, -1), "bottom": (0, 1)}.items():
+        p = os.path.join(context, f"{tx + dx}_{ty + dy}.webp")
+        if os.path.exists(p):
+            found[side] = Image.open(p).convert("RGB")
+    return found
+
+
+def with_neighbours(im, nb):
+    """Lay each neighbour's art over the strip it shares with this tile, fading inward."""
+    import numpy as np
+
+    if not nb:
+        return im
+    a = np.asarray(im.convert("RGB"), np.float32)
+    h, w = a.shape[:2]
+    s = round(STRIP * w / 576)
+    for side, n in nb.items():
+        b = np.asarray(n.resize((w, h), Image.LANCZOS), np.float32)
+        if side == "left":
+            wt = _edge_weights(w, s)[None, :, None]
+            src = np.zeros_like(a); src[:, :s] = b[:, w - s:]
+        elif side == "right":
+            wt = _edge_weights(w, s)[::-1][None, :, None]
+            src = np.zeros_like(a); src[:, w - s:] = b[:, :s]
+        elif side == "top":
+            wt = _edge_weights(h, s)[:, None, None]
+            src = np.zeros_like(a); src[:s] = b[h - s:]
+        else:
+            wt = _edge_weights(h, s)[::-1][:, None, None]
+            src = np.zeros_like(a); src[h - s:] = b[:s]
+        a = a * (1 - wt) + src * wt
+    return Image.fromarray(np.clip(a, 0, 255).astype(np.uint8))
+
+
+def check(out, render):
+    """What went wrong, judged against the render: a list of problems (empty = fine)."""
+    import numpy as np
+
+    p, r = _small(out), _small(render)
+    problems = []
+    gp, gr = p.mean(2), r.mean(2)
+    ep = np.abs(np.diff(gp, axis=1))[:-1] + np.abs(np.diff(gp, axis=0))[:, :-1]
+    er = np.abs(np.diff(gr, axis=1))[:-1] + np.abs(np.diff(gr, axis=0))[:, :-1]
+    corr = float(np.corrcoef(ep.ravel(), er.ravel())[0, 1]) if er.std() > 0 else 1.0
+    hp = np.asarray(Image.fromarray(p.astype(np.uint8)).convert("HSV"), np.float32)
+    hr = np.asarray(Image.fromarray(r.astype(np.uint8)).convert("HSV"), np.float32)
+
+    def green(h):
+        return (h[..., 0] > 40) & (h[..., 0] < 120) & (h[..., 1] > 60) & (h[..., 2] > 60)
+
+    def water(h):
+        return (h[..., 0] > 128) & (h[..., 0] < 160) & (h[..., 1] > 70) & (h[..., 2] > 90)
+
+    if np.abs(p - r).mean() < 6:
+        problems.append("barely changed")
+    if corr < 0.2:
+        problems.append(f"layout drifted (edges {corr:.2f})")
+    rg = green(hr)
+    if rg.sum() > 200 and (green(hp) & rg).sum() / rg.sum() < 0.7:
+        problems.append("built on parks")
+    if (water(hp) & ~water(hr)).mean() > 0.004:
+        problems.append("invented water")
+    return problems, corr
+
+
+def paint_tile(pipe, im, tx, ty, nb):
+    """Paint one tile, retrying with new seeds while the checks fail; keep the best."""
+    init = with_neighbours(im, nb)
+    best = None
+    for attempt in range(RETRIES + 1):
+        out = repaint(pipe, init, CITY + STYLE, seed=tx * 7919 + ty + attempt * 104729, **CITY_PAINT)
+        out = keep_water(harmonise(out, im), im)
+        out = with_neighbours(out, nb)  # meet the neighbours exactly at the outer edge
+        problems, corr = check(out, im)
+        score = (len(problems), -corr)
+        if best is None or score < best[0]:
+            best = (score, out, problems, attempt + 1)
+        if not problems:
+            break
+    return pixelate(best[1]), best[2], best[3]
+
+
+def tiles(src, dst, limit_minutes, order=None, context=None):
     pipe = load()
     os.makedirs(dst, exist_ok=True)
     stop = time.time() + limit_minutes * 60
-    done = 0
+    report = {}
     # paint in priority order (nearest Connaught Place first), not by file name,
     # so a runner that hits its time limit leaves only the outskirts undone
     names = [f"{tx}_{ty}.png" for tx, ty in json.load(open(order))] if order else sorted(os.listdir(src))
@@ -207,11 +333,16 @@ def tiles(src, dst, limit_minutes, order=None):
             continue
         im = Image.open(os.path.join(src, name)).convert("RGB")
         tx, ty = (int(v) for v in name[:-4].split("_"))
-        out = pixelate(harmonise(repaint(pipe, im, CITY + STYLE, seed=tx * 7919 + ty, **CITY_PAINT), im))
+        nb = neighbours(context, tx, ty)
+        out, problems, tries = paint_tile(pipe, im, tx, ty, nb)
         # keep the overlap margin: the viewer crossfades neighbours across it
         out.save(out_path, quality=82, method=6)
-        done += 1
-    print("painted", done, "tiles", flush=True)
+        report[name[:-4]] = {"tries": tries, "problems": problems, "neighbours": sorted(nb)}
+        print(name[:-4], f"tries={tries}", "ok" if not problems else "; ".join(problems), flush=True)
+    with open(os.path.join(dst, "qa.json"), "w") as f:
+        json.dump(report, f, indent=0)
+    bad = sum(1 for v in report.values() if v["problems"])
+    print(f"painted {len(report)} tiles, {bad} still flagged after retries", flush=True)
 
 
 if __name__ == "__main__":
@@ -221,4 +352,5 @@ if __name__ == "__main__":
     else:
         lim = float(sys.argv[sys.argv.index("--limit-minutes") + 1]) if "--limit-minutes" in sys.argv else 1e9
         order = sys.argv[sys.argv.index("--order") + 1] if "--order" in sys.argv else None
-        tiles(sys.argv[2], sys.argv[3], lim, order)
+        context = sys.argv[sys.argv.index("--context") + 1] if "--context" in sys.argv else None
+        tiles(sys.argv[2], sys.argv[3], lim, order, context)
