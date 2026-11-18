@@ -144,6 +144,8 @@ function frame(now, dt) {
         const x0 = cx * span;
         const y0 = cy * span;
         if (x0 > bounds.x1 || x0 + span < bounds.x0 || y0 > bounds.y1 || y0 + span < bounds.y0) continue;
+        // under finished painted tiles the drawn city never shows: don't draw it
+        if (paintedCovers(x0, y0, span, s)) continue;
         let c = city.get(level, cx, cy);
         if (!c && performance.now() < budgetEnd) c = city.render(level, cx, cy, makeCanvas);
         const r = deviceRect(x0, y0, span, s, tx, ty);
@@ -236,6 +238,21 @@ function drawStandIn(level, x0, y0, span, s, tx, ty, r) {
  * street level wherever tiles exist. Closer in, the drawn map's finer detail
  * takes over; further out there are too many tiles to show at once.
  */
+/** True when loaded painted tiles hide this whole square of the map. */
+function paintedCovers(x0, y0, span, s) {
+  if (!opts.painted || !painted || s < 0.16 || s > 1.4) return false;
+  const t = painted.tile;
+  const m = painted.margin;
+  // the tiles around too: their faded edges must have art beneath them
+  for (let cy = Math.floor((y0 - m) / t); cy <= Math.floor((y0 + span + m) / t); cy++) {
+    for (let cx = Math.floor((x0 - m) / t); cx <= Math.floor((x0 + span + m) / t); cx++) {
+      const img = painted.images.get(cx + '_' + cy);
+      if (!img || !img.complete || !img.naturalWidth) return false;
+    }
+  }
+  return true;
+}
+
 function drawPainted(vx0, vy0, vx1, vy1, s, tx, ty) {
   if (!painted || s < 0.16 || s > 1.4) return;
   const span = painted.tile;
