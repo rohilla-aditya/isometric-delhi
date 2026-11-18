@@ -1,13 +1,13 @@
 """Repaint map renders as detailed pixel art with a free, open image model.
 
-    python paint.py landmarks <render-dir> <out-dir>
-    python paint.py tiles <render-dir> <out-dir> [--limit-minutes N]
+    python paint.py landmarks <render-dir> <out-dir> [landmark-id ...]
+    python paint.py tiles <render-dir> <out-dir> [--order tiles.json] [--limit-minutes N]
 
-Model: DreamShaper 8 (an open Stable Diffusion 1.5 model, CreativeML
-OpenRAIL-M) with the LCM-LoRA speed-up (OpenRAIL++), image-to-image, on CPU.
-The render fixes the layout; the model only adds texture and detail, so the
-strength stays moderate. Results are reduced to a limited palette at half
-resolution for a crisp pixel-art finish.
+Model: FLUX.1 [schnell] (Black Forest Labs, Apache 2.0), 4-bit GGUF, run on
+CPU with stable-diffusion.cpp; text encoders CLIP-L and T5-XXL (4-bit). The
+render fixes the layout; the model adds texture and detail, so the strength
+stays low for the city. Results are reduced to a limited palette at half
+resolution for a crisp pixel-art finish. get_models.sh fetches the weights.
 """
 
 import json
@@ -15,13 +15,13 @@ import os
 import sys
 import time
 
-import torch
 from PIL import Image, ImageFilter
 
+MODELS = os.path.expanduser(os.environ.get("FLUX_DIR", "~/models/flux"))
+THREADS = int(os.environ.get("PAINT_THREADS", os.cpu_count() or 4))
 GROUND = (226, 216, 194)  # the map's bare-ground colour, behind landmark sprites
 STYLE = ("detailed isometric pixel art, 16-bit game art, crisp dark outlines, sharp shadows, "
          "rich texture, high detail")
-NEG = "blurry, photo, photograph, 3d render, text, watermark, people close-up, distorted, smooth gradient"
 CITY = ("isometric pixel art of a dense Indian city, Delhi, weathered flat concrete rooftops with black "
         "water tanks, colourful plaster walls with small windows, street vendors, neem trees, ")
 
@@ -54,29 +54,31 @@ LANDMARK = {
     "igi-airport": "modern airport terminal with glass facade, control tower and parked white airplanes",
 }
 
-STRENGTH = {"landmarks": 0.68, "tiles": 0.38}
-# Landmarks whose defining feature (a dome, a coloured crown) gets lost at the
-# usual strength are painted more gently.
-GENTLE = {"humayun-tomb": 0.36, "bharat-mandapam": 0.48, "lodhi-tomb": 0.5}
+# Strength and sampling steps. FLUX follows the render closely at 0.3 for the
+# city (higher and it invents its own buildings); landmarks take more freedom.
+CITY_PAINT = dict(strength=0.30, steps=8)
+LANDMARK_PAINT = dict(strength=0.60, steps=4)
+DETAIL_PAINT = dict(strength=0.25, steps=4)
 
 
 def load():
-    from diffusers import AutoPipelineForImage2Image, LCMScheduler
+    from stable_diffusion_cpp import StableDiffusion
 
-    torch.set_num_threads(os.cpu_count() or 4)
-    pipe = AutoPipelineForImage2Image.from_pretrained("Lykon/dreamshaper-8", torch_dtype=torch.float32, safety_checker=None)
-    pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)
-    pipe.load_lora_weights("latent-consistency/lcm-lora-sdv1-5")
-    pipe.fuse_lora()
-    pipe.set_progress_bar_config(disable=True)
-    return pipe
+    return StableDiffusion(
+        diffusion_model_path=os.path.join(MODELS, "flux1-schnell-Q4_K_S.gguf"),
+        clip_l_path=os.path.join(MODELS, "clip_l.safetensors"),
+        t5xxl_path=os.path.join(MODELS, "t5-Q4_K_M.gguf"),
+        vae_path=os.path.join(MODELS, "ae.safetensors"),
+        n_threads=THREADS,
+        verbose=False,
+    )
 
 
-def repaint(pipe, image, prompt, strength, seed):
-    w, h = (image.width // 8) * 8, (image.height // 8) * 8
-    out = pipe(prompt=prompt, negative_prompt=NEG, image=image.resize((w, h)), strength=strength,
-               num_inference_steps=8, guidance_scale=1.5, generator=torch.Generator().manual_seed(seed)).images[0]
-    return out.resize(image.size, Image.LANCZOS)
+def repaint(pipe, image, prompt, strength, steps, seed):
+    w, h = max(64, (image.width // 64) * 64), max(64, (image.height // 64) * 64)
+    out = pipe.generate_image(prompt=prompt, init_image=image.resize((w, h), Image.LANCZOS), strength=strength,
+                              width=w, height=h, sample_steps=steps, cfg_scale=1.0, seed=seed)[0]
+    return out.convert("RGB").resize(image.size, Image.LANCZOS)
 
 
 def pixelate(im, colors=72):
@@ -106,7 +108,7 @@ def landmarks(src, dst):
         base.paste(rgba, mask=rgba.split()[3])
         t = time.time()
         prompt = f"{LANDMARK.get(lid, lid)}, {STYLE}"
-        out = repaint(pipe, base, prompt, GENTLE.get(lid, STRENGTH["landmarks"]), 11)
+        out = repaint(pipe, base, prompt, seed=11, **LANDMARK_PAINT)
         # Big sites (Red Fort is 1.4 km across) get few sprite pixels per metre
         # and turn blocky when zoomed in, so enlarge and paint in more detail.
         b = boxes[lid]
@@ -124,12 +126,13 @@ def landmarks(src, dst):
 
 
 # Landmark sprites aim for this many image px per metre of map (pixelated
-# blocks of about 0.7 m), capped at DETAIL_MAX_PX on the long side.
+# blocks of about 0.7 m), capped at DETAIL_MAX_PX on the long side so the
+# biggest (Red Fort) still paints within one 6-hour runner job.
 DETAIL_PX_PER_M = 3.0
 DETAIL_MAX_PX = 3584
 
 
-def refine(pipe, big, prompt, tile=768, overlap=192, strength=0.35):
+def refine(pipe, big, prompt, tile=768, overlap=160):
     """Paint detail into an enlarged painting, in overlapping sections.
 
     Low strength keeps every section true to the enlarged picture, so they
@@ -140,16 +143,19 @@ def refine(pipe, big, prompt, tile=768, overlap=192, strength=0.35):
     W, H = big.size
     acc = np.zeros((H, W, 3), np.float32)
     wsum = np.zeros((H, W, 1), np.float32)
-    step = tile - overlap
-    xs = list(range(0, max(1, W - tile) + 1, step)) + ([W - tile] if W > tile and (W - tile) % step else [])
-    ys = list(range(0, max(1, H - tile) + 1, step)) + ([H - tile] if H > tile and (H - tile) % step else [])
+    def starts(n_px):
+        # as few sections as cover the side with at least `overlap` between them
+        n = max(1, -(-(n_px - overlap) // (tile - overlap)))
+        return [round(k * (n_px - tile) / (n - 1)) for k in range(n)] if n > 1 else [0]
+
+    xs, ys = starts(W), starts(H)
     ramp = np.minimum(np.arange(tile) + 1, overlap) / overlap
     ramp = np.minimum(ramp, ramp[::-1])
     for i, y in enumerate(ys):
         for j, x in enumerate(xs):
             box = (x, y, min(W, x + tile), min(H, y + tile))
             part = big.crop(box)
-            out = repaint(pipe, part, prompt, strength, 101 + i * 31 + j)
+            out = repaint(pipe, part, prompt, seed=101 + i * 31 + j, **DETAIL_PAINT)
             a = np.asarray(out, np.float32)
             wy, wx = ramp[: a.shape[0]].copy(), ramp[: a.shape[1]].copy()
             # outer edges of the picture get full weight
@@ -198,7 +204,7 @@ def tiles(src, dst, limit_minutes, order=None):
             continue
         im = Image.open(os.path.join(src, name)).convert("RGB")
         tx, ty = (int(v) for v in name[:-4].split("_"))
-        out = pixelate(harmonise(repaint(pipe, im, CITY + STYLE, STRENGTH["tiles"], tx * 7919 + ty), im))
+        out = pixelate(harmonise(repaint(pipe, im, CITY + STYLE, seed=tx * 7919 + ty, **CITY_PAINT), im))
         # keep the overlap margin: the viewer crossfades neighbours across it
         out.save(out_path, quality=82, method=6)
         done += 1

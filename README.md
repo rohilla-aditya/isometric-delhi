@@ -83,24 +83,31 @@ detailed pixel art:
 
 The painter (`tools/paint/`) renders clean views of the map in a headless
 browser (`render.cjs`), then `paint.py` repaints them image-to-image with
-[DreamShaper 8](https://huggingface.co/Lykon/dreamshaper-8) (a Stable Diffusion
-1.5 model, CreativeML OpenRAIL-M) and the
-[LCM-LoRA](https://huggingface.co/latent-consistency/lcm-lora-sdv1-5) speed-up
-(OpenRAIL++). It runs on CPU: about 30 s per tile. The render fixes the layout
-and the model adds texture, so strengths stay moderate (0.45 for the city,
-0.68 for landmarks, whose sprites are then cut to the model's own outline).
+[FLUX.1 \[schnell\]](https://huggingface.co/black-forest-labs/FLUX.1-schnell)
+(Black Forest Labs, Apache 2.0) as a 4-bit
+[GGUF](https://huggingface.co/city96/FLUX.1-schnell-gguf), run on CPU by
+[stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp):
+about 7–9 minutes a tile on a 4-core runner. The render fixes the layout and
+the model adds detail: strength 0.30 for the city (higher and it invents its
+own buildings) and 0.60 for landmarks, whose sprites are cut to the model's
+own outline. Big landmarks are then enlarged to about 3 px per metre and
+painted again in overlapping sections at 0.25 so they stay sharp up close.
 Results go to a limited palette at half resolution for a crisp finish.
+`get_models.sh` fetches the ~10 GB of weights and checks their checksums.
 
 The `paint` workflow splits the ~4,400 tiles of the NCR across 16 free GitHub
 runners, nearest to Connaught Place first, and runs daily until every tile is
-painted. To repaint, delete tiles from the `painted` branch and run it again.
+current. `painters.json` on the `painted` branch records which painter
+(`tools/paint/VERSION`) made each tile; bumping the version repaints the city
+gradually, outward from the centre. The `landmarks` workflow repaints the
+sprites, one runner per landmark, onto the `flux-sprites` branch for review.
 
 ```bash
-pip install torch --index-url https://download.pytorch.org/whl/cpu
-pip install -r tools/paint/requirements.txt
+pip install -r tools/paint/requirements.txt    # compiles stable-diffusion.cpp
+tools/paint/get_models.sh                      # ~10 GB into ~/models/flux
 npm start &                                    # the map must be running
 node tools/paint/render.cjs http://localhost:8080/ landmarks renders/
-python tools/paint/paint.py landmarks renders/ public/sprites/
+python tools/paint/paint.py landmarks renders/ public/sprites/ red-fort
 ```
 
 ## Landmark photos

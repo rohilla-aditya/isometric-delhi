@@ -1,0 +1,100 @@
+# Repaints the landmark sprites with FLUX.1 schnell (tools/paint), one runner
+# per landmark, and pushes the result to the `flux-sprites` branch for review
+# as a pull request. Run by hand from the Actions tab.
+name: landmarks
+
+on:
+  workflow_dispatch:
+    inputs:
+      ids:
+        description: Landmark ids, space separated (empty for all)
+        default: ""
+
+permissions:
+  contents: write
+
+env:
+  FLUX_DIR: ${{ github.workspace }}/../models/flux
+  CMAKE_ARGS: -DGGML_NATIVE=OFF -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON
+
+jobs:
+  list:
+    runs-on: ubuntu-latest
+    outputs:
+      ids: ${{ steps.ids.outputs.ids }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: ids
+        env:
+          IDS: ${{ inputs.ids }}
+        run: |
+          node -e '
+            import("./public/js/data.js").then(({ LANDMARKS }) => {
+              const want = (process.env.IDS || "").split(/\s+/).filter(Boolean);
+              const ids = LANDMARKS.map((l) => l.id).filter((id) => !want.length || want.includes(id));
+              console.log("ids=" + JSON.stringify(ids));
+            });' >> "$GITHUB_OUTPUT"
+          cat "$GITHUB_OUTPUT"
+
+  paint:
+    needs: list
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        id: ${{ fromJSON(needs.list.outputs.ids) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Cache the compiled painter
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ hashFiles('tools/paint/requirements.txt') }}-avx2
+      - name: Install the painter
+        run: |
+          pip install -q -r tools/paint/requirements.txt
+          cd tools/paint && npm install --no-save --silent playwright@1.49.1 && npx playwright install --with-deps chromium
+      - name: Download the model
+        run: tools/paint/get_models.sh
+      - name: Render the landmarks
+        run: |
+          PORT=8080 node serve.mjs &
+          sleep 2
+          node tools/paint/render.cjs http://localhost:8080/ landmarks renders
+      - name: Paint ${{ matrix.id }}
+        run: python tools/paint/paint.py landmarks renders out ${{ matrix.id }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sprite-${{ matrix.id }}
+          path: out/${{ matrix.id }}.webp
+          retention-days: 7
+
+  publish:
+    needs: paint
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: sprite-*
+          path: new
+          merge-multiple: true
+      - name: Push the new sprites to the flux-sprites branch
+        run: |
+          if [ -z "$(ls -A new 2>/dev/null)" ]; then echo "nothing new"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -q -B flux-sprites
+          cp new/*.webp public/sprites/
+          git add public/sprites
+          git commit -q -m "Landmark sprites repainted with FLUX.1 schnell: $(ls new | sed 's/\.webp$//' | tr '\n' ' ')"
+          git push -q -f origin flux-sprites
