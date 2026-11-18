@@ -34,7 +34,7 @@ from shapely.geometry import LineString, MultiLineString, MultiPolygon, Polygon,
 # Delhi NCR: Delhi, Gurugram, Faridabad, Noida, Greater Noida and Ghaziabad.
 BOUNDS = {"latMin": 28.33, "latMax": 28.89, "lonMin": 76.83, "lonMax": 77.56}
 CELL = 2000  # metres
-MAX_PER_CELL = 7000  # buildings; see finish_heights
+MAX_PER_CELL = 2000  # buildings; see finish_heights
 LAT0 = (BOUNDS["latMin"] + BOUNDS["latMax"]) / 2
 MX = 111320 * math.cos(math.radians(LAT0))  # metres per degree of longitude
 MY = 110574  # metres per degree of latitude
@@ -339,9 +339,10 @@ def finish_heights(col):
             coords = tuple(round(v, 1) for xy in list(p.exterior.coords)[:-1] for v in xy)
             kind = building_kind({"building": cls}) if cls else "other"
             candidates.append((h if h and 2 < h < 300 else None, kind, coords, c.x, c.y, 10**12 + k, p.area, False))
-        # The browser draws every building in a cell; past the busiest OSM cell
-        # (about 7,000) panning stutters on phones. Fill each cell up to that,
-        # largest footprints first, so gaps fill without slowing the map.
+        # The browser draws every building in a cell, so Overture only fills
+        # cells up to MAX_PER_CELL (a busy OSM cell's count), largest
+        # footprints first: sparsely mapped areas fill in, while the map stays
+        # as quick to pan as before. All of Overture made it 4x slower.
         candidates.sort(key=lambda b: -b[6])
         added = 0
         for b in candidates:
