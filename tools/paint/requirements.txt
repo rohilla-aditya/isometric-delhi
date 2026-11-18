@@ -1,8 +1,6 @@
-# For tools/paint/paint.py only. Install torch from the CPU index first:
-#   pip install torch --index-url https://download.pytorch.org/whl/cpu
-diffusers==0.35.2
-transformers==4.57.1
-accelerate==1.11.0
-peft==0.17.1
-pillow==11.0.0
-safetensors==0.6.2
+# For tools/paint/paint.py. stable-diffusion.cpp compiles on install; for a
+# build that runs on any x86-64 CPU with AVX2 set, before installing:
+#   CMAKE_ARGS="-DGGML_NATIVE=OFF -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON"
+stable-diffusion-cpp-python==0.4.7
+pillow==13.0.0
+numpy==2.5.5
