@@ -38,7 +38,7 @@ jobs:
 
       - name: Download OpenStreetMap extract for India
         run: |
-          curl -sSfL --retry 4 -o india.osm.pbf https://download.geofabrik.de/asia/india-latest.osm.pbf
+          curl -sSfL --retry 6 --retry-delay 30 --retry-all-errors -o india.osm.pbf https://download.geofabrik.de/asia/india-latest.osm.pbf
           ls -lh india.osm.pbf
 
       - name: Cut out Delhi NCR
