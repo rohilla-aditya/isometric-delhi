@@ -1,10 +1,157 @@
 {
+"-10_20": {
+"tries": 2,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"-10_22": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-10_24": {
+"tries": 1,
+"problems": [
+"invented water"
+],
+"neighbours": []
+},
 "-10_26": {
 "tries": 1,
 "problems": [],
 "neighbours": []
 },
+"-10_28": {
+"tries": 2,
+"problems": [],
+"neighbours": []
+},
+"-10_30": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-10_32": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
 "-10_34": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-10_36": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-10_38": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-10_40": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-10_42": {
+"tries": 2,
+"problems": [],
+"neighbours": []
+},
+"-10_44": {
+"tries": 2,
+"problems": [
+"layout drifted (edges 0.00)"
+],
+"neighbours": []
+},
+"-10_46": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-11_21": {
+"tries": 2,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"-11_23": {
+"tries": 3,
+"problems": [
+"invented water"
+],
+"neighbours": []
+},
+"-11_25": {
+"tries": 1,
+"problems": [
+"invented water"
+],
+"neighbours": []
+},
+"-11_27": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-11_29": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-11_31": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-11_33": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-11_35": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-11_37": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-11_39": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-11_41": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-11_43": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-12_26": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-12_28": {
+"tries": 2,
+"problems": [],
+"neighbours": []
+},
+"-12_30": {
 "tries": 1,
 "problems": [],
 "neighbours": []
@@ -15,6 +162,100 @@
 "neighbours": []
 },
 "-12_34": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-12_36": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-12_38": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-12_40": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-12_42": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-13_23": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-13_27": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-13_31": {
+"tries": 2,
+"problems": [],
+"neighbours": []
+},
+"-13_33": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-13_35": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-13_37": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-13_39": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-14_28": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-14_34": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-14_40": {
+"tries": 2,
+"problems": [],
+"neighbours": []
+},
+"-15_35": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-1_11": {
+"tries": 3,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"-1_13": {
+"tries": 2,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"-1_15": {
 "tries": 1,
 "problems": [],
 "neighbours": []
@@ -254,6 +495,11 @@
 "problems": [],
 "neighbours": []
 },
+"-1_51": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
 "-2_14": {
 "tries": 1,
 "problems": [],
@@ -487,6 +733,44 @@
 "problems": [],
 "neighbours": []
 },
+"-2_48": {
+"tries": 3,
+"problems": [
+"invented water"
+],
+"neighbours": []
+},
+"-2_50": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-2_52": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-3_13": {
+"tries": 1,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"-3_15": {
+"tries": 1,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"-3_17": {
+"tries": 1,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
 "-3_19": {
 "tries": 3,
 "problems": [
@@ -698,6 +982,30 @@
 "problems": [],
 "neighbours": []
 },
+"-3_49": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-3_51": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-4_14": {
+"tries": 3,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"-4_16": {
+"tries": 2,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
 "-4_18": {
 "tries": 3,
 "problems": [
@@ -892,7 +1200,32 @@
 "problems": [],
 "neighbours": []
 },
+"-4_46": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
 "-4_48": {
+"tries": 2,
+"problems": [],
+"neighbours": []
+},
+"-4_50": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-5_15": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-5_17": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-5_19": {
 "tries": 2,
 "problems": [],
 "neighbours": []
@@ -1062,7 +1395,27 @@
 "problems": [],
 "neighbours": []
 },
+"-5_47": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-5_49": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-6_16": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
 "-6_18": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-6_20": {
 "tries": 1,
 "problems": [],
 "neighbours": []
@@ -1203,6 +1556,48 @@
 ]
 },
 "-6_40": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-6_42": {
+"tries": 3,
+"problems": [
+"layout drifted (edges 0.12)"
+],
+"neighbours": []
+},
+"-6_44": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-6_46": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-6_48": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-6_50": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-7_15": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-7_17": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-7_19": {
 "tries": 1,
 "problems": [],
 "neighbours": []
@@ -1362,6 +1757,43 @@
 "problems": [],
 "neighbours": []
 },
+"-7_43": {
+"tries": 2,
+"problems": [
+"layout drifted (edges 0.06)"
+],
+"neighbours": []
+},
+"-7_45": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-7_47": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-7_49": {
+"tries": 2,
+"problems": [],
+"neighbours": []
+},
+"-7_51": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-8_18": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-8_20": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
 "-8_22": {
 "tries": 2,
 "problems": [],
@@ -1472,6 +1904,49 @@
 "problems": [],
 "neighbours": []
 },
+"-8_42": {
+"tries": 3,
+"problems": [],
+"neighbours": []
+},
+"-8_44": {
+"tries": 3,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"-8_46": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-9_19": {
+"tries": 1,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"-9_21": {
+"tries": 3,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"-9_23": {
+"tries": 2,
+"problems": [],
+"neighbours": []
+},
+"-9_25": {
+"tries": 3,
+"problems": [
+"layout drifted (edges 0.20)"
+],
+"neighbours": []
+},
 "-9_27": {
 "tries": 3,
 "problems": [],
@@ -1518,6 +1993,21 @@
 "neighbours": []
 },
 "-9_41": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-9_43": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"-9_45": {
+"tries": 2,
+"problems": [],
+"neighbours": []
+},
+"0_12": {
 "tries": 1,
 "problems": [],
 "neighbours": []
@@ -1772,6 +2262,25 @@
 "0_48": {
 "tries": 1,
 "problems": [],
+"neighbours": []
+},
+"0_50": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"0_52": {
+"tries": 3,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"10_10": {
+"tries": 1,
+"problems": [
+"barely changed"
+],
 "neighbours": []
 },
 "10_12": {
@@ -2070,6 +2579,25 @@
 ],
 "neighbours": []
 },
+"10_52": {
+"tries": 1,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"10_54": {
+"tries": 3,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"11_11": {
+"tries": 2,
+"problems": [],
+"neighbours": []
+},
 "11_13": {
 "tries": 3,
 "problems": [],
@@ -2349,6 +2877,30 @@
 "problems": [
 "barely changed"
 ],
+"neighbours": []
+},
+"11_51": {
+"tries": 2,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"11_53": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"11_9": {
+"tries": 1,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"12_10": {
+"tries": 1,
+"problems": [],
 "neighbours": []
 },
 "12_12": {
@@ -2645,6 +3197,23 @@
 ],
 "neighbours": []
 },
+"12_52": {
+"tries": 2,
+"problems": [],
+"neighbours": []
+},
+"12_54": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"13_11": {
+"tries": 2,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
 "13_13": {
 "tries": 3,
 "problems": [
@@ -2924,6 +3493,35 @@
 "problems": [],
 "neighbours": []
 },
+"13_51": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"13_53": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"13_55": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"14_10": {
+"tries": 2,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"14_12": {
+"tries": 2,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
 "14_14": {
 "tries": 1,
 "problems": [],
@@ -3182,6 +3780,37 @@
 "14_48": {
 "tries": 2,
 "problems": [],
+"neighbours": []
+},
+"14_50": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"14_52": {
+"tries": 2,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"14_54": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"15_11": {
+"tries": 3,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"15_13": {
+"tries": 3,
+"problems": [
+"barely changed"
+],
 "neighbours": []
 },
 "15_15": {
@@ -3458,6 +4087,39 @@
 "problems": [],
 "neighbours": []
 },
+"15_51": {
+"tries": 2,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"15_53": {
+"tries": 1,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"16_10": {
+"tries": 1,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"16_12": {
+"tries": 1,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"16_14": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
 "16_16": {
 "tries": 1,
 "problems": [],
@@ -3711,6 +4373,35 @@
 "16_48": {
 "tries": 1,
 "problems": [],
+"neighbours": []
+},
+"16_50": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"16_52": {
+"tries": 2,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"16_54": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"17_11": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"17_13": {
+"tries": 1,
+"problems": [
+"barely changed"
+],
 "neighbours": []
 },
 "17_15": {
@@ -3968,6 +4659,40 @@
 "problems": [],
 "neighbours": []
 },
+"17_49": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"17_51": {
+"tries": 1,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"17_53": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"18_10": {
+"tries": 3,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"18_12": {
+"tries": 2,
+"problems": [],
+"neighbours": []
+},
+"18_14": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
 "18_16": {
 "tries": 1,
 "problems": [],
@@ -4204,6 +4929,28 @@
 ]
 },
 "18_46": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"18_48": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"18_50": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"18_52": {
+"tries": 2,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"19_13": {
 "tries": 1,
 "problems": [],
 "neighbours": []
@@ -4456,6 +5203,26 @@
 },
 "19_47": {
 "tries": 1,
+"problems": [],
+"neighbours": []
+},
+"19_49": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"19_51": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"19_53": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"1_11": {
+"tries": 2,
 "problems": [],
 "neighbours": []
 },
@@ -4744,6 +5511,23 @@
 ],
 "neighbours": []
 },
+"1_51": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"20_12": {
+"tries": 3,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"20_14": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
 "20_16": {
 "tries": 1,
 "problems": [],
@@ -4982,6 +5766,31 @@
 "problems": [],
 "neighbours": []
 },
+"20_48": {
+"tries": 2,
+"problems": [],
+"neighbours": []
+},
+"20_50": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"20_52": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"21_13": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"21_15": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
 "21_17": {
 "tries": 1,
 "problems": [],
@@ -5206,6 +6015,21 @@
 "problems": [],
 "neighbours": []
 },
+"21_49": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"21_51": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"22_14": {
+"tries": 2,
+"problems": [],
+"neighbours": []
+},
 "22_16": {
 "tries": 2,
 "problems": [],
@@ -5213,6 +6037,13 @@
 },
 "22_18": {
 "tries": 3,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"22_20": {
+"tries": 2,
 "problems": [
 "barely changed"
 ],
@@ -5396,6 +6227,33 @@
 "22_44": {
 "tries": 1,
 "problems": [],
+"neighbours": []
+},
+"22_46": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"22_48": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"22_50": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"23_15": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"23_17": {
+"tries": 3,
+"problems": [
+"barely changed"
+],
 "neighbours": []
 },
 "23_19": {
@@ -5590,6 +6448,21 @@
 "problems": [],
 "neighbours": []
 },
+"23_47": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"23_49": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"24_16": {
+"tries": 2,
+"problems": [],
+"neighbours": []
+},
 "24_18": {
 "tries": 1,
 "problems": [
@@ -5769,9 +6642,38 @@
 "problems": [],
 "neighbours": []
 },
+"24_44": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
 "24_46": {
 "tries": 1,
 "problems": [],
+"neighbours": []
+},
+"24_48": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"25_17": {
+"tries": 1,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"25_19": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"25_21": {
+"tries": 3,
+"problems": [
+"barely changed"
+],
 "neighbours": []
 },
 "25_23": {
@@ -5888,6 +6790,45 @@
 "problems": [],
 "neighbours": []
 },
+"25_43": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"25_45": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"25_47": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"25_49": {
+"tries": 2,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"26_18": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"26_20": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"26_22": {
+"tries": 3,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
 "26_24": {
 "tries": 1,
 "problems": [],
@@ -5963,6 +6904,11 @@
 "problems": [],
 "neighbours": []
 },
+"26_38": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
 "26_40": {
 "tries": 1,
 "problems": [],
@@ -5973,7 +6919,34 @@
 "problems": [],
 "neighbours": []
 },
+"26_44": {
+"tries": 2,
+"problems": [],
+"neighbours": []
+},
+"26_46": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"27_19": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"27_21": {
+"tries": 2,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
 "27_23": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"27_25": {
 "tries": 1,
 "problems": [],
 "neighbours": []
@@ -6023,9 +6996,36 @@
 "problems": [],
 "neighbours": []
 },
+"27_37": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
 "27_39": {
 "tries": 1,
 "problems": [],
+"neighbours": []
+},
+"27_41": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"27_43": {
+"tries": 3,
+"problems": [],
+"neighbours": []
+},
+"27_45": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"28_22": {
+"tries": 1,
+"problems": [
+"barely changed"
+],
 "neighbours": []
 },
 "28_24": {
@@ -6036,6 +7036,11 @@
 "neighbours": []
 },
 "28_26": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"28_28": {
 "tries": 1,
 "problems": [],
 "neighbours": []
@@ -6060,7 +7065,66 @@
 "problems": [],
 "neighbours": []
 },
+"28_34": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"28_36": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"28_38": {
+"tries": 1,
+"problems": [
+"built on parks"
+],
+"neighbours": []
+},
+"28_40": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"28_42": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"28_46": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"29_23": {
+"tries": 1,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"29_25": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"29_27": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"29_29": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
 "29_31": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"29_33": {
 "tries": 1,
 "problems": [],
 "neighbours": []
@@ -6071,6 +7135,28 @@
 "neighbours": []
 },
 "29_37": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"29_39": {
+"tries": 2,
+"problems": [],
+"neighbours": []
+},
+"29_41": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"29_43": {
+"tries": 1,
+"problems": [
+"invented water"
+],
+"neighbours": []
+},
+"2_12": {
 "tries": 1,
 "problems": [],
 "neighbours": []
@@ -6329,7 +7415,99 @@
 "problems": [],
 "neighbours": []
 },
+"2_50": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
 "2_52": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"30_24": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"30_26": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"30_28": {
+"tries": 2,
+"problems": [],
+"neighbours": []
+},
+"30_30": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"30_32": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"30_34": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"30_36": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"30_38": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"30_40": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"31_23": {
+"tries": 2,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"31_27": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"31_33": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"31_35": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"32_26": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"32_32": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"33_27": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"3_11": {
 "tries": 1,
 "problems": [],
 "neighbours": []
@@ -6615,6 +7793,30 @@
 ],
 "neighbours": []
 },
+"3_51": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"3_53": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"4_10": {
+"tries": 3,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"4_12": {
+"tries": 2,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
 "4_14": {
 "tries": 3,
 "problems": [
@@ -6885,6 +8087,34 @@
 "4_48": {
 "tries": 1,
 "problems": [],
+"neighbours": []
+},
+"4_50": {
+"tries": 1,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"4_52": {
+"tries": 2,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"5_11": {
+"tries": 1,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"5_13": {
+"tries": 1,
+"problems": [
+"barely changed"
+],
 "neighbours": []
 },
 "5_15": {
@@ -7164,6 +8394,21 @@
 "problems": [
 "barely changed"
 ],
+"neighbours": []
+},
+"5_53": {
+"tries": 2,
+"problems": [],
+"neighbours": []
+},
+"6_10": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"6_12": {
+"tries": 1,
+"problems": [],
 "neighbours": []
 },
 "6_14": {
@@ -7453,6 +8698,18 @@
 ]
 },
 "6_50": {
+"tries": 1,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"6_52": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"7_11": {
 "tries": 1,
 "problems": [
 "barely changed"
@@ -7755,6 +9012,28 @@
 ],
 "neighbours": []
 },
+"7_53": {
+"tries": 2,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"7_9": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"8_10": {
+"tries": 1,
+"problems": [],
+"neighbours": []
+},
+"8_12": {
+"tries": 3,
+"problems": [],
+"neighbours": []
+},
 "8_14": {
 "tries": 1,
 "problems": [],
@@ -8039,6 +9318,20 @@
 "neighbours": []
 },
 "8_52": {
+"tries": 3,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"8_54": {
+"tries": 1,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"9_11": {
 "tries": 3,
 "problems": [
 "barely changed"
@@ -8330,6 +9623,27 @@
 "9_49": {
 "tries": 1,
 "problems": [],
+"neighbours": []
+},
+"9_51": {
+"tries": 2,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"9_53": {
+"tries": 2,
+"problems": [
+"barely changed"
+],
+"neighbours": []
+},
+"9_7": {
+"tries": 2,
+"problems": [
+"barely changed"
+],
 "neighbours": []
 }
 }
