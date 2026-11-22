@@ -239,8 +239,19 @@ function drawStandIn(level, x0, y0, span, s, tx, ty, r) {
  * takes over; further out there are too many tiles to show at once.
  */
 /** True when loaded painted tiles hide this whole square of the map. */
+// Painted tiles hold 0.5 image px per world px. Past ~1.5x enlargement they
+// go soft, so they fade out and the sharp drawn city takes over.
+const PAINT_MIN = 0.16;
+const PAINT_SOLID = 0.75;
+const PAINT_GONE = 1.05;
+
+function paintedAlpha(s) {
+  if (!opts.painted || !painted || s < PAINT_MIN) return 0;
+  return Math.max(0, Math.min(1, (PAINT_GONE - s) / (PAINT_GONE - PAINT_SOLID)));
+}
+
 function paintedCovers(x0, y0, span, s) {
-  if (!opts.painted || !painted || s < 0.16 || s > 1.4) return false;
+  if (paintedAlpha(s) < 1) return false;
   const t = painted.tile;
   const m = painted.margin;
   // the tiles around too: their faded edges must have art beneath them
@@ -254,7 +265,10 @@ function paintedCovers(x0, y0, span, s) {
 }
 
 function drawPainted(vx0, vy0, vx1, vy1, s, tx, ty) {
-  if (!painted || s < 0.16 || s > 1.4) return;
+  const alpha = paintedAlpha(s);
+  if (!alpha) return;
+  ctx.save();
+  ctx.globalAlpha = alpha;
   const span = painted.tile;
   const M = painted.margin;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -280,6 +294,19 @@ function drawPainted(vx0, vy0, vx1, vy1, s, tx, ty) {
       ctx.drawImage(paintedTile(img, key, m), r.x, r.y, r.w, r.h);
     }
   }
+  ctx.restore();
+  // Landmarks on top: the tiles only hold a washed-out copy of each one,
+  // painted from whatever sprite it had when the tile was made.
+  ctx.setTransform(s, 0, 0, s, tx, ty);
+  ctx.imageSmoothingEnabled = true;
+  const prev = ctx.globalAlpha;
+  ctx.globalAlpha = alpha;
+  for (const lm of landmarks) {
+    const b = lm.screen;
+    if (b.x1 < vx0 || b.x0 > vx1 || b.y1 < vy0 || b.y0 > vy1) continue;
+    drawLandmarkModel(ctx, lm);
+  }
+  ctx.globalAlpha = prev;
 }
 
 /** A painted tile ready to draw: tinted for the time of day, edges faded. */
