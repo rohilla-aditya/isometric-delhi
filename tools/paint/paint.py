@@ -270,15 +270,22 @@ def with_neighbours(im, nb):
 
 
 def check(out, render):
-    """What went wrong, judged against the render: a list of problems (empty = fine)."""
+    """What went wrong, judged against the render: a list of problems (empty = fine).
+
+    Tuned on 492 published tiles: the first version flagged 21% of them, most
+    wrongly (empty farmland "barely changed", blue glass roofs "invented
+    water"), and each false flag cost two more paintings.
+    """
     import numpy as np
 
     p, r = _small(out), _small(render)
+    land = np.asarray(water_mask(render).resize(p.shape[1::-1]), np.float32) < 128
     problems = []
     gp, gr = p.mean(2), r.mean(2)
     ep = np.abs(np.diff(gp, axis=1))[:-1] + np.abs(np.diff(gp, axis=0))[:, :-1]
     er = np.abs(np.diff(gr, axis=1))[:-1] + np.abs(np.diff(gr, axis=0))[:, :-1]
-    corr = float(np.corrcoef(ep.ravel(), er.ravel())[0, 1]) if er.std() > 0 else 1.0
+    corr = float(np.corrcoef(ep.ravel(), er.ravel())[0, 1]) if er.std() > 0 and ep.std() > 0 else 1.0
+    busy = er.mean() > 15  # streets and buildings, not open farmland
     hp = np.asarray(Image.fromarray(p.astype(np.uint8)).convert("HSV"), np.float32)
     hr = np.asarray(Image.fromarray(r.astype(np.uint8)).convert("HSV"), np.float32)
 
@@ -288,14 +295,19 @@ def check(out, render):
     def water(h):
         return (h[..., 0] > 128) & (h[..., 0] < 160) & (h[..., 1] > 70) & (h[..., 2] > 90)
 
-    if np.abs(p - r).mean() < 6:
+    def bluish(h):  # glass and tin roofs in the render, which the painter makes bluer
+        return (h[..., 0] > 110) & (h[..., 0] < 175) & (h[..., 1] > 20)
+
+    if busy and land.any() and np.abs(p - r)[land].mean() < 6:
         problems.append("barely changed")
+    if busy and ep.mean() < 0.5 * er.mean():
+        problems.append("lost buildings")
     if corr < 0.2:
         problems.append(f"layout drifted (edges {corr:.2f})")
     rg = green(hr)
     if rg.sum() > 200 and (green(hp) & rg).sum() / rg.sum() < 0.7:
         problems.append("built on parks")
-    if (water(hp) & ~water(hr)).mean() > 0.004:
+    if (water(hp) & ~water(hr) & ~bluish(hr) & land).mean() > 0.004:
         problems.append("invented water")
     return problems, corr
 

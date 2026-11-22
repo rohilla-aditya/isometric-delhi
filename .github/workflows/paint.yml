@@ -8,12 +8,13 @@
 # Painted tiles live on the `painted` branch so main stays light; the pages
 # workflow publishes them. painters.json there records which painter made
 # each tile: bump tools/paint/VERSION to repaint the city, nearest Connaught
-# Place first. Runs daily until every tile is current, or by hand.
+# Place first. Runs twice a day until every tile is current, or by hand.
 name: paint
 
 on:
   schedule:
-    - cron: "23 1 * * *"
+    # twice a day: one run of both passes takes ~10 hours
+    - cron: "23 1,13 * * *"
   workflow_dispatch:
     inputs:
       per_shard:
