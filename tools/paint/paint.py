@@ -351,6 +351,8 @@ def tiles(src, dst, limit_minutes, order=None, context=None):
         out.save(out_path, quality=82, method=6)
         report[name[:-4]] = {"tries": tries, "problems": problems, "neighbours": sorted(nb)}
         print(name[:-4], f"tries={tries}", "ok" if not problems else "; ".join(problems), flush=True)
+        with open(os.path.join(dst, "qa.json"), "w") as f:  # after every tile, in case the runner dies
+            json.dump(report, f, indent=0)
     with open(os.path.join(dst, "qa.json"), "w") as f:
         json.dump(report, f, indent=0)
     bad = sum(1 for v in report.values() if v["problems"])

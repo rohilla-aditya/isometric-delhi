@@ -85,8 +85,10 @@ jobs:
         run: |
           ctx=""
           if [ -d "$RUNNER_TEMP/painted/tiles" ]; then ctx="--context $RUNNER_TEMP/painted/tiles"; fi
-          python tools/paint/paint.py tiles renders out --order tiles.json $ctx --limit-minutes 285
-          mv out/qa.json "out/qa-${{ inputs.phase }}-${{ matrix.shard }}.json"
+          # a painter that crashes (out of memory, lost runner) still hands in
+          # the tiles it finished: they are saved one by one, qa.json too
+          python tools/paint/paint.py tiles renders out --order tiles.json $ctx --limit-minutes 285 || echo "::warning::painter stopped early; keeping the tiles it finished"
+          if [ -f out/qa.json ]; then mv out/qa.json "out/qa-${{ inputs.phase }}-${{ matrix.shard }}.json"; fi
 
       - uses: actions/upload-artifact@v4
         if: steps.plan.outputs.count != '0'
